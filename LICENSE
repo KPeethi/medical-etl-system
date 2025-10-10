@@ -1,0 +1,77 @@
+MIT License
+
+Copyright (c) 2025 Medical ETL System Contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+---
+
+## Third-Party Software
+
+This project uses the following third-party software:
+
+### Tesseract OCR
+- License: Apache License 2.0
+- Source: https://github.com/tesseract-ocr/tesseract
+
+### pandas
+- License: BSD 3-Clause License
+- Source: https://github.com/pandas-dev/pandas
+
+### pytesseract
+- License: Apache License 2.0
+- Source: https://github.com/madmaze/pytesseract
+
+### Pillow
+- License: HPND License
+- Source: https://github.com/python-pillow/Pillow
+
+### pdf2image
+- License: MIT License
+- Source: https://github.com/Belval/pdf2image
+
+### py7zr
+- License: LGPL 2.1
+- Source: https://github.com/miurahr/py7zr
+
+### rarfile
+- License: ISC License
+- Source: https://github.com/markokr/rarfile
+
+### openpyxl
+- License: MIT License
+- Source: https://openpyxl.readthedocs.io/
+
+## Medical Data Processing Notice
+
+This software is designed for processing medical records and patient data. Users are responsible for:
+
+1. Ensuring compliance with applicable healthcare regulations (HIPAA, GDPR, etc.)
+2. Implementing appropriate security measures for sensitive data
+3. Obtaining necessary permissions for data processing
+4. Following institutional policies and procedures
+5. Maintaining data confidentiality and integrity
+
+The authors and contributors of this software assume no responsibility for:
+- Compliance with healthcare regulations
+- Data security or privacy breaches
+- Accuracy of processed medical information
+- Any consequences arising from the use of this software
+
+Users must implement appropriate safeguards and follow best practices for medical data handling.
