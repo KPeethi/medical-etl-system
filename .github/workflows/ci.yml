@@ -130,18 +130,27 @@ jobs:
           bandit-report.json
           safety-report.json
 
-  docker:
+  integration:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
 
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.11"
 
-    - name: Build Docker image
+    - name: Install system dependencies
       run: |
-        docker build -t medical-etl:test .
+        sudo apt-get update
+        sudo apt-get install -y tesseract-ocr tesseract-ocr-eng libmagic1
 
-    - name: Test Docker image
+    - name: Install Python dependencies
       run: |
-        docker run --rm medical-etl:test python -c "from config.config import load_environment_config; print('✅ Docker build successful')"
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Run integration tests
+      run: |
+        python -c "from config.config import load_environment_config; print('✅ Integration test successful')"
+        python process_dataset1.py --demo

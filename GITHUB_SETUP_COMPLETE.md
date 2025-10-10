@@ -38,7 +38,7 @@ git commit -m "feat: initial medical ETL system with GitHub setup
 - Zero hardcoded values - fully configurable
 - Comprehensive logging and audit trails
 - Cross-platform support (Windows, Linux, macOS)
-- Docker deployment ready
+- 💻 **Simple Python deployment** - no containers needed
 - CI/CD pipelines and issue templates"
 ```
 

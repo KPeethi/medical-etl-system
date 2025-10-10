@@ -16,7 +16,7 @@
 - 📊 **Comprehensive Logging**: Detailed audit trails with smart log rotation
 - 🗜️ **Archive Support**: ZIP, RAR, 7Z, TAR extraction
 - ⚙️ **Zero Hardcoded Values**: Fully configurable via environment variables
-- 🐳 **Docker Ready**: Container deployment support
+- � **Simple Setup**: Direct Python execution, no containers needed
 - 🖥️ **Cross-Platform**: Windows, Linux, macOS compatibility
 
 ## 🚀 Quick Start
@@ -132,44 +132,19 @@ destination/
     └── unidentified_file.pdf
 ```
 
-## 🐳 Docker Deployment
+## �️ Direct Python Usage
 
-```dockerfile
-FROM python:3.12-slim
-
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    tesseract-ocr \
-    tesseract-ocr-eng \
-    libmagic1 \
-    && rm -rf /var/lib/apt/lists/*
-
-# Set working directory
-WORKDIR /app
-
-# Copy and install requirements
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Copy application
-COPY . .
-
-# Set environment variables
-ENV TESSERACT_CMD=/usr/bin/tesseract
-ENV PYTHONPATH=/app
-
-# Create directories
-RUN mkdir -p data logs temp
-
-# Run application
-CMD ["python", "main.py", "--help"]
-```
+The system runs directly with Python - no containers needed:
 
 ```bash
-# Build and run
-docker build -t medical-etl .
-docker run -v /your/data:/app/input -v /your/output:/app/output medical-etl \
-  python main.py --source /app/input --destination /app/output
+# Process medical files
+python main.py --source "C:\Medical\Records" --destination "C:\Organized\Output"
+
+# With Excel mapping
+python main.py --source "C:\Medical\Records" --destination "C:\Organized\Output" --mapping "patient_list.xlsx"
+
+# Preview mode (see what would happen without making changes)
+python main.py --source "C:\Medical\Records" --destination "C:\Organized\Output" --dry-run --verbose
 ```
 
 ## 🧪 Testing
