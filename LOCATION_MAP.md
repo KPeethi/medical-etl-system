@@ -1,128 +1,108 @@
-## EXACT LOCATION MAP - C:\Users\kulka\Downloads
+# Medical ETL System - Directory Structure
 
-### 📍 **Main Directory Structure:**
+## Project Structure
+
 ```
-C:\Users\kulka\Downloads\
-├── 📁 Dataset1_ClassicExcelMap\           ← **YOUR TARGET DATASET**
-│   ├── 📄 demographics.xlsx              (Excel mapping file)
-│   ├── 📄 README.txt                     (Dataset information)
-│   └── 📁 Export\
-│       ├── 📁 ClinicalDocuments\
-│       │   ├── 📄 clinicaldocument_1001.pdf
-│       │   ├── 📄 clinicaldocument_1002.pdf
-│       │   └── ... (more PDF files)
-│       └── 📁 LabResults\
-│           ├── 📄 labresult_1001.png
-│           ├── 📄 labresult_1002.png
-│           └── ... (more image files)
-│
-├── 📁 ETL\                               ← **YOUR ETL SYSTEM**
-│   ├── 📁 medical_etl_system\            ← **MAIN SYSTEM DIRECTORY**
-│   │   ├── 📄 main.py                   (Main processor)
-│   │   ├── 📄 dataset1_solution.py      (Dataset1 processor)
-│   │   ├── 📄 process_dataset1.py       (Processing script)
-│   │   ├── 📁 config\
-│   │   │   └── 📄 config.py             (Configuration settings)
-│   │   ├── 📁 modules\
-│   │   │   ├── 📄 etl_logger.py         (Logging system)
-│   │   │   ├── 📄 file_organizer.py     (File organization)
-│   │   │   ├── 📄 excel_manager.py      (Excel handling)
-│   │   │   └── ... (other modules)
-│   │   ├── 📁 data\                     ← **EXCEL TEMPLATES**
-│   │   │   ├── 📄 Patient_Mapping_Template.xlsx
-│   │   │   └── 📄 Dataset1_Mapping_Demo.xlsx
-│   │   ├── 📁 logs\                     ← **LOG FILES LOCATION**
-│   │   │   └── 📄 Texas_Houston_100920252140.log
-│   │   └── 📁 temp\                     (Temporary files)
-│   │
-│   ├── 📁 processed_datasets\            ← **OUTPUT DESTINATION**
-│   │   └── 📁 Dataset1_Output\          (Will be created when processing)
-│   │
-│   └── 📁 .venv\                        (Python virtual environment)
-│       └── 📁 Scripts\
-│           └── 📄 python.exe            (Python interpreter)
-│
-├── 📁 All_5_Dummy_Datasets\
-├── 📁 state_practice_sample\
-├── 📁 messy_export_dataset\
-└── ... (other directories and files)
+medical_etl_system/
+├── 📁 config/                    # Configuration management
+│   ├── 📄 config.py             # Main configuration
+│   ├── 📄 __init__.py           
+│   └── 📄 .env                  # Environment variables (create from example)
+├── 📁 modules/                   # Core processing modules
+│   ├── 📄 __init__.py
+│   ├── 📄 duplicate_detector.py # Duplicate file detection
+│   ├── 📄 etl_logger.py         # Comprehensive logging
+│   ├── 📄 excel_manager.py      # Excel template and export
+│   ├── 📄 file_extractor.py     # Archive extraction
+│   ├── 📄 file_organizer.py     # File organization
+│   ├── 📄 mapping_processor.py  # Excel mapping processing
+│   ├── 📄 ocr_processor.py      # OCR text extraction
+│   └── 📄 patient_parser.py     # Patient info extraction
+├── 📁 data/                      # Data files (configurable location)
+├── 📁 logs/                      # Log files (configurable location)  
+├── 📁 temp/                      # Temporary files (configurable location)
+├── 📄 main.py                   # Main ETL processor
+├── 📄 requirements.txt          # Python dependencies
+└── 📄 setup.py                  # Package installation
 ```
 
-### 🎯 **Key Paths for Dataset1_ClassicExcelMap Processing:**
+## Usage Patterns
 
-#### **Source Dataset:**
-```
-C:\Users\kulka\Downloads\Dataset1_ClassicExcelMap\
-```
-
-#### **ETL System Location:**
-```
-C:\Users\kulka\Downloads\ETL\medical_etl_system\
-```
-
-#### **Configuration Files:**
-- **Main Config**: `C:\Users\kulka\Downloads\ETL\medical_etl_system\config\config.py`
-- **Log Settings**: Lines 80-95 (smart naming and rotation)
-- **Directory Settings**: Lines 12-16 (LOGS_DIR, TEMP_DIR, DATA_DIR)
-
-#### **Log Files Location:**
-```
-C:\Users\kulka\Downloads\ETL\medical_etl_system\logs\
-```
-- **Format**: `{state}_{practice}_{mmddyyyyhhmm}_{run_type}_part{n}.log`
-- **Example**: `Texas_Houston_100920252140_real_run_part1.log`
-
-#### **Destination Path (Output):**
-```
-C:\Users\kulka\Downloads\ETL\processed_datasets\Dataset1_Output\
-```
-- **Patient Folders**: `John_Doe_1985-05-15\`
-- **Special Folders**: `UNMAPPED_FILES\`, `DUPLICATES\`
-- **Logs Subfolder**: `LOGS\` (with session logs and Excel reports)
-
-### 🚀 **Command to Process Dataset1_ClassicExcelMap:**
-
+### Basic Processing
 ```bash
-# Navigate to ETL system
-cd "C:\Users\kulka\Downloads\ETL\medical_etl_system"
-
-# Run processing command
-C:/Users/kulka/Downloads/ETL/.venv/Scripts/python.exe main.py "C:\Users\kulka\Downloads\Dataset1_ClassicExcelMap" "C:\Users\kulka\Downloads\ETL\processed_datasets\Dataset1_Output"
-
-# With mapping file (optional)
-C:/Users/kulka/Downloads/ETL/.venv/Scripts/python.exe main.py "C:\Users\kulka\Downloads\Dataset1_ClassicExcelMap" "C:\Users\kulka\Downloads\ETL\processed_datasets\Dataset1_Output" --mapping "data\Patient_Mapping_Template.xlsx"
-
-# Dry run (test mode)
-C:/Users/kulka/Downloads/ETL/.venv/Scripts/python.exe main.py "C:\Users\kulka\Downloads\Dataset1_ClassicExcelMap" "C:\Users\kulka\Downloads\ETL\processed_datasets\Dataset1_Output" --dry-run
+# Process medical files from source to organized destination
+python main.py --source "/path/to/medical/files" --destination "/path/to/organized/output"
 ```
 
-### 📊 **Expected Results After Processing:**
-
-```
-C:\Users\kulka\Downloads\ETL\processed_datasets\Dataset1_Output\
-├── 📁 Patient_1001\
-│   ├── 📄 clinicaldocument_1001.pdf
-│   └── 📄 labresult_1001.png
-├── 📁 Patient_1002\
-│   ├── 📄 clinicaldocument_1002.pdf
-│   └── 📄 labresult_1002.png
-├── 📁 UNMAPPED_FILES\
-├── 📁 DUPLICATES\
-└── 📁 LOGS\
-    ├── 📄 Dataset1_ClassicExcelMap_100920252146_real_run_part1.log
-    ├── 📄 Processing_Summary.xlsx
-    └── 📄 Patient_Report.xlsx
+### With Excel Mapping
+```bash
+# Use Excel mapping file to identify patients
+python main.py --source "/path/to/medical/files" --destination "/path/to/organized/output" --mapping "/path/to/patient_list.xlsx"
 ```
 
-### 🔧 **How to Customize Locations:**
-
-#### **Change Log Directory:**
-Edit `C:\Users\kulka\Downloads\ETL\medical_etl_system\config\config.py`:
-```python
-LOGS_DIR = Path("C:/CustomLogs")  # Your custom location
+### Preview Mode
+```bash
+# See what would happen without making changes
+python main.py --source "/path/to/medical/files" --destination "/path/to/organized/output" --dry-run
 ```
 
-#### **Change Default Output:**
-Update the command line arguments or modify the script to use different destination paths.
+## Output Structure
 
-All paths are now clearly mapped and ready for Dataset1_ClassicExcelMap processing!
+After processing, your destination directory will have:
+
+```
+destination/
+├── 📁 Smith, John 01-15-1990/
+│   ├── 📄 2022_chest_xray.pdf
+│   ├── 📄 2023_blood_work.pdf
+│   └── 📄 2024_consultation.pdf
+├── 📁 Johnson, Mary 03-22-1985/
+│   ├── 📄 2023_mammogram.pdf
+│   └── 📄 2024_followup.pdf
+├── 📁 duplicates/
+│   └── 📁 Smith, John 01-15-1990/
+│       └── 📄 duplicate_xray.pdf
+└── 📁 unmapped/
+    └── 📄 unidentified_file.pdf
+```
+
+## Log Files
+
+The system creates comprehensive logs in the logs directory:
+
+```
+logs/
+├── 📄 medical_etl_20241010_1430.log    # Main processing log
+├── 📄 session_summary_20241010.json    # Session summary
+└── 📄 patient_summary_20241010.xlsx    # Excel report
+```
+
+## Configuration
+
+All paths are configurable via environment variables in the `.env` file:
+
+```env
+# Directory locations
+DATA_DIR=data
+LOGS_DIR=logs  
+TEMP_DIR=temp
+
+# Processing settings
+WORKER_THREADS=4
+MAX_FILE_SIZE_MB=100
+
+# OCR configuration
+TESSERACT_CMD=/usr/bin/tesseract  # Auto-detected if not set
+OCR_LANGUAGES=eng
+```
+
+## Key Features
+
+- ✅ **Zero hardcoded paths** - Everything configurable
+- ✅ **Cross-platform** - Works on Windows, Linux, macOS  
+- ✅ **Auto-detection** - Finds Tesseract automatically
+- ✅ **Archive support** - ZIP, RAR, 7Z extraction
+- ✅ **OCR processing** - Text extraction from PDFs/images
+- ✅ **Excel integration** - Mapping templates and reports
+- ✅ **Comprehensive logging** - Full audit trails
+- ✅ **Duplicate detection** - Smart file deduplication

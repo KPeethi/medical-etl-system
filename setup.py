@@ -68,7 +68,6 @@ setup(
     entry_points={
         "console_scripts": [
             "medical-etl=main:main",
-            "medical-etl-dataset1=process_dataset1:main",
         ],
     },
     include_package_data=True,

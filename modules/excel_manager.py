@@ -368,26 +368,3 @@ class ExcelManager:
                     
         except Exception as e:
             print(f"Error formatting Excel sheets: {str(e)}")
-
-
-def create_sample_files():
-    """Create sample Excel mapping and log files"""
-    excel_manager = ExcelManager()
-    
-    # Create mapping template with examples
-    config = Config()
-    template_path = config.DATA_DIR / "Patient_Mapping_Template.xlsx"
-    
-    success = excel_manager.create_mapping_template(template_path, include_examples=True)
-    if success:
-        print(f"Excel mapping template created: {template_path}")
-    
-    # Create empty template
-    empty_template_path = config.DATA_DIR / "Patient_Mapping_Empty.xlsx"
-    success = excel_manager.create_mapping_template(empty_template_path, include_examples=False)
-    if success:
-        print(f"Empty Excel mapping template created: {empty_template_path}")
-
-
-if __name__ == "__main__":
-    create_sample_files()

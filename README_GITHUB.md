@@ -156,8 +156,8 @@ pytest
 # Run with coverage
 pytest --cov=modules --cov-report=html
 
-# Test specific functionality
-python process_dataset1.py --demo
+# Test configuration loading
+python -c "from config.config import load_environment_config; print('✅ System ready')"
 
 # Validate configuration
 python -c "from config.config import load_environment_config; print('✅ Configuration loaded successfully')"

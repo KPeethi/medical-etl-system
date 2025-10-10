@@ -36,16 +36,16 @@ Process with Excel mapping:
 python main.py --source "/path/to/dataset" --destination "/path/to/output" --mapping "/path/to/mapping.xlsx"
 ```
 
-### 4. Dataset1_ClassicExcelMap Processing
+### 4. Process Your Medical Files
 
-For the specific Dataset1_ClassicExcelMap:
+Process any medical dataset:
 ```bash
-python process_dataset1.py --dataset-path "/path/to/Dataset1_ClassicExcelMap" --output-path "/path/to/output"
+python main.py --source "/path/to/medical/files" --destination "/path/to/organized/output"
 ```
 
-Run in demo mode (no actual dataset required):
+With Excel mapping file:
 ```bash
-python process_dataset1.py --demo
+python main.py --source "/path/to/medical/files" --destination "/path/to/organized/output" --mapping "/path/to/patient_list.xlsx"
 ```
 
 ## Configuration Options
@@ -76,11 +76,7 @@ python process_dataset1.py --demo
 - `--dry-run`: Preview mode (no actual file operations)
 - `--verbose` / `-v`: Verbose logging
 
-#### process_dataset1.py
-- `--dataset-path`: Path to Dataset1_ClassicExcelMap
-- `--output-path`: Output directory for processed files
-- `--mapping-file`: Excel mapping file
-- `--demo`: Run in demo mode
+All processing is done through main.py with flexible command-line options.
 
 ## Directory Structure
 
@@ -108,10 +104,7 @@ The system automatically searches for Tesseract in:
    - macOS: `/opt/homebrew/bin/tesseract`
 
 ### Dataset Paths
-When using `process_dataset1.py` without `--dataset-path`, it searches:
-1. Current directory + Dataset1_ClassicExcelMap
-2. User Downloads + Dataset1_ClassicExcelMap
-3. Relative path Dataset1_ClassicExcelMap
+All dataset paths are specified via command-line arguments. No default search paths are used.
 
 ## Deployment Examples
 
@@ -123,7 +116,7 @@ set DATA_DIR=D:\Medical_ETL\data
 set LOGS_DIR=D:\Medical_ETL\logs
 
 # Run processing
-python main.py --source "D:\Medical_Records\Dataset1" --destination "D:\Processed_Records"
+python main.py --source "D:\Medical_Records" --destination "D:\Processed_Records"
 ```
 
 ### Linux Production
@@ -175,7 +168,7 @@ If you have an existing installation with hardcoded paths:
 For deployment assistance or configuration questions:
 - Check the logs in the configured `LOGS_DIR`
 - Run with `--verbose` for detailed output
-- Use `--demo` mode for testing configuration
+- Use `--dry-run` mode for testing configuration
 - Verify Tesseract installation with auto-detection
 
 ## Security Notes
