@@ -306,10 +306,13 @@ async def upload_and_inspect(file: UploadFile = File(...)):
             result = await inspect_dataset(request)
             
             # Update file_path to show original filename
-            result_dict = result.dict()
-            result_dict['file_path'] = file.filename
-            
-            return result_dict
+            if isinstance(result, dict):
+                result['file_path'] = file.filename
+                return result
+            else:
+                result_dict = result.dict()
+                result_dict['file_path'] = file.filename
+                return result_dict
         finally:
             # Clean up temporary file
             if os.path.exists(tmp_file_path):

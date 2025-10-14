@@ -9,6 +9,8 @@ This Medical ETL (Extract, Transform, Load) system processes medical records wit
 - ✅ **Zero hardcoded paths** - Fully configurable via environment variables
 - ✅ **Auto-detection** - Automatically finds Tesseract and common paths
 - ✅ **Command-line interface** - Flexible path specification
+- ✅ **REST API** - FastAPI-based web API for remote operations
+- ✅ **Dataset inspection** - Inspect ZIP files without extraction
 - ✅ **Environment configuration** - .env file support for all settings
 - ✅ **Cross-platform compatibility** - Windows, Linux, macOS support
 - ✅ **Docker ready** - Container deployment support
@@ -18,11 +20,16 @@ This Medical ETL (Extract, Transform, Load) system processes medical records wit
 # Copy and configure environment
 cp config/environment_example.env config/.env
 
-# Process any dataset
+# Process any dataset (CLI)
 python main.py --source "/path/to/dataset" --destination "/path/to/output"
 
-# Process with mapping
+# Process with mapping (CLI)
 python main.py --source "/path/to/dataset" --destination "/path/to/output" --mapping "/path/to/mapping.xlsx"
+
+# Or use the REST API
+python api.py
+# API will be available at http://localhost:8000
+# Interactive docs at http://localhost:8000/docs
 ```
 
 **Output Structure:**
@@ -137,6 +144,48 @@ medical_etl_system/
 ```
 
 ## Usage
+
+### REST API (Recommended for Remote Operations)
+
+The system includes a FastAPI-based REST API for remote operations.
+
+#### Start the API Server
+```bash
+python api.py
+# Or using uvicorn
+uvicorn api:app --reload
+```
+
+#### API Endpoints
+- **GET** `/health` - Health check
+- **POST** `/api/v1/dataset/inspect` - Inspect ZIP file contents
+- **POST** `/api/v1/dataset/upload-and-inspect` - Upload and inspect ZIP file
+- **POST** `/api/v1/etl/run` - Run ETL process
+
+#### API Examples
+```bash
+# Health check
+curl http://localhost:8000/health
+
+# Inspect a dataset
+curl -X POST http://localhost:8000/api/v1/dataset/inspect \
+  -H "Content-Type: application/json" \
+  -d '{"file_path": "/path/to/dataset.zip"}'
+
+# Run ETL without mapping file (mapping is optional)
+curl -X POST http://localhost:8000/api/v1/etl/run \
+  -H "Content-Type: application/json" \
+  -d '{
+    "source_path": "/path/to/source",
+    "destination_path": "/path/to/destination",
+    "dry_run": false
+  }'
+```
+
+**API Documentation:**
+- Interactive docs: http://localhost:8000/docs
+- Alternative docs: http://localhost:8000/redoc
+- See [API_README.md](API_README.md) for complete API documentation
 
 ### Basic Command Line Usage
 
@@ -344,6 +393,7 @@ WITH (FORMATFILE = 'json_format.xml')
 
 ## 📚 Documentation
 
+- **[API_README.md](API_README.md)** - Complete REST API documentation
 - **[PRODUCTION_SETUP.md](PRODUCTION_SETUP.md)** - Complete production deployment guide
 - **[EXCEL_FORMATS.md](EXCEL_FORMATS.md)** - Excel mapping file formats
 - **[ENHANCED_PROCESSING.md](ENHANCED_PROCESSING.md)** - Processing pipeline details

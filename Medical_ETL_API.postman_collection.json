@@ -1,0 +1,151 @@
+{
+  "info": {
+    "name": "Medical ETL System API",
+    "description": "Collection of API requests for the Medical ETL System",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Health Check",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:8000/health",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8000",
+          "path": ["health"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Inspect Dataset (by path)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"file_path\": \"/path/to/your/dataset.zip\"\n}"
+        },
+        "url": {
+          "raw": "http://localhost:8000/api/v1/dataset/inspect",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8000",
+          "path": ["api", "v1", "dataset", "inspect"]
+        },
+        "description": "Inspect a ZIP file's contents without extracting it. Replace the file_path with an actual path to a ZIP file on your system."
+      },
+      "response": []
+    },
+    {
+      "name": "Upload and Inspect Dataset",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "file",
+              "type": "file",
+              "src": "/path/to/your/dataset.zip",
+              "description": "Select a ZIP file to upload and inspect"
+            }
+          ]
+        },
+        "url": {
+          "raw": "http://localhost:8000/api/v1/dataset/upload-and-inspect",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8000",
+          "path": ["api", "v1", "dataset", "upload-and-inspect"]
+        },
+        "description": "Upload a ZIP file and inspect its contents. Use the file selector in Postman to choose a file."
+      },
+      "response": []
+    },
+    {
+      "name": "Run ETL (without mapping)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"source_path\": \"/path/to/source/files\",\n  \"destination_path\": \"/path/to/destination\",\n  \"dry_run\": true\n}"
+        },
+        "url": {
+          "raw": "http://localhost:8000/api/v1/etl/run",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8000",
+          "path": ["api", "v1", "etl", "run"]
+        },
+        "description": "Run the ETL process without a mapping file. The system will use OCR and filename parsing to identify patients. Note: mapping_file is optional and not included here."
+      },
+      "response": []
+    },
+    {
+      "name": "Run ETL (with mapping)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"source_path\": \"/path/to/source/files\",\n  \"destination_path\": \"/path/to/destination\",\n  \"mapping_file\": \"/path/to/mapping.xlsx\",\n  \"dry_run\": false\n}"
+        },
+        "url": {
+          "raw": "http://localhost:8000/api/v1/etl/run",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8000",
+          "path": ["api", "v1", "etl", "run"]
+        },
+        "description": "Run the ETL process with a mapping file. The mapping file provides patient information for file organization."
+      },
+      "response": []
+    },
+    {
+      "name": "Run ETL Dry Run (safe test)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"source_path\": \"/path/to/source/files\",\n  \"destination_path\": \"/path/to/destination\",\n  \"dry_run\": true\n}"
+        },
+        "url": {
+          "raw": "http://localhost:8000/api/v1/etl/run",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8000",
+          "path": ["api", "v1", "etl", "run"]
+        },
+        "description": "Run the ETL process in dry-run mode. No files will be moved or modified. This is useful for testing."
+      },
+      "response": []
+    }
+  ]
+}
