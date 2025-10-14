@@ -277,6 +277,159 @@ class FileExtractor:
             'total_temp_size_bytes': total_size,
             'total_temp_size_mb': round(total_size / (1024 * 1024), 2)
         }
+    
+    def inspect_archive(self, archive_path: Path) -> dict:
+        """
+        Inspect archive contents without extraction
+        
+        Args:
+            archive_path: Path to archive file
+            
+        Returns:
+            Dictionary with archive information including file list and structure
+        """
+        try:
+            if not archive_path.exists():
+                raise FileNotFoundError(f"Archive file not found: {archive_path}")
+            
+            suffix = archive_path.suffix.lower()
+            
+            if suffix == '.zip':
+                return self._inspect_zip(archive_path)
+            elif suffix == '.rar':
+                return self._inspect_rar(archive_path)
+            elif suffix == '.7z':
+                return self._inspect_7z(archive_path)
+            elif suffix in ['.tar', '.gz', '.tar.gz']:
+                return self._inspect_tar(archive_path)
+            else:
+                raise ValueError(f"Unsupported archive format: {suffix}")
+                
+        except Exception as e:
+            logger.error(f"Error inspecting archive {archive_path}: {str(e)}")
+            return {
+                'error': str(e),
+                'files': [],
+                'total_files': 0,
+                'total_size': 0
+            }
+    
+    def _inspect_zip(self, archive_path: Path) -> dict:
+        """Inspect ZIP archive without extraction"""
+        files = []
+        total_size = 0
+        
+        try:
+            with zipfile.ZipFile(archive_path, 'r') as zip_ref:
+                for info in zip_ref.infolist():
+                    if not info.is_dir():
+                        files.append({
+                            'name': info.filename,
+                            'size': info.file_size,
+                            'compressed_size': info.compress_size,
+                            'is_dir': False
+                        })
+                        total_size += info.file_size
+            
+            return {
+                'archive_path': str(archive_path),
+                'archive_type': 'zip',
+                'files': files,
+                'total_files': len(files),
+                'total_size': total_size,
+                'total_size_mb': round(total_size / (1024 * 1024), 2)
+            }
+        except Exception as e:
+            logger.error(f"Error inspecting ZIP {archive_path}: {str(e)}")
+            raise
+    
+    def _inspect_rar(self, archive_path: Path) -> dict:
+        """Inspect RAR archive without extraction"""
+        files = []
+        total_size = 0
+        
+        try:
+            with rarfile.RarFile(archive_path) as rar_ref:
+                for info in rar_ref.infolist():
+                    if not info.isdir():
+                        files.append({
+                            'name': info.filename,
+                            'size': info.file_size,
+                            'compressed_size': info.compress_size,
+                            'is_dir': False
+                        })
+                        total_size += info.file_size
+            
+            return {
+                'archive_path': str(archive_path),
+                'archive_type': 'rar',
+                'files': files,
+                'total_files': len(files),
+                'total_size': total_size,
+                'total_size_mb': round(total_size / (1024 * 1024), 2)
+            }
+        except Exception as e:
+            logger.error(f"Error inspecting RAR {archive_path}: {str(e)}")
+            raise
+    
+    def _inspect_7z(self, archive_path: Path) -> dict:
+        """Inspect 7Z archive without extraction"""
+        files = []
+        total_size = 0
+        
+        try:
+            with py7zr.SevenZipFile(archive_path, mode='r') as sz_ref:
+                for name, info in sz_ref.list():
+                    if not info.is_directory:
+                        files.append({
+                            'name': name,
+                            'size': info.uncompressed,
+                            'compressed_size': info.compressed,
+                            'is_dir': False
+                        })
+                        total_size += info.uncompressed
+            
+            return {
+                'archive_path': str(archive_path),
+                'archive_type': '7z',
+                'files': files,
+                'total_files': len(files),
+                'total_size': total_size,
+                'total_size_mb': round(total_size / (1024 * 1024), 2)
+            }
+        except Exception as e:
+            logger.error(f"Error inspecting 7Z {archive_path}: {str(e)}")
+            raise
+    
+    def _inspect_tar(self, archive_path: Path) -> dict:
+        """Inspect TAR archive without extraction"""
+        files = []
+        total_size = 0
+        
+        try:
+            mode = 'r:gz' if archive_path.suffix.lower() in ['.gz', '.tar.gz'] else 'r'
+            
+            with tarfile.open(archive_path, mode) as tar_ref:
+                for member in tar_ref.getmembers():
+                    if member.isfile():
+                        files.append({
+                            'name': member.name,
+                            'size': member.size,
+                            'is_dir': False
+                        })
+                        total_size += member.size
+            
+            return {
+                'archive_path': str(archive_path),
+                'archive_type': 'tar',
+                'files': files,
+                'total_files': len(files),
+                'total_size': total_size,
+                'total_size_mb': round(total_size / (1024 * 1024), 2)
+            }
+        except Exception as e:
+            logger.error(f"Error inspecting TAR {archive_path}: {str(e)}")
+            raise
 
 
 class ArchiveValidator:
