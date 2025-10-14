@@ -1,340 +1,169 @@
 """
-Data Mapping Processor for Medical ETL System
-Handles Excel/CSV mapping files with various field synonyms
+Mapping Processor
+Loads mapping files (Excel/CSV/JSON) and provides smart lookup
+for patient information based on filename, id, etc.
 """
+from __future__ import annotations
 
-import pandas as pd
+import json
 import logging
+import re
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Any
-from config.config import Config
+from typing import Any, Dict, Optional
+
+# pyright: reportMissingTypeStubs=false
+import pandas as pd  # type: ignore
+
+from medical_etl_system.config.config import Config
+from .excel_mapper import ExcelMapper
 
 logger = logging.getLogger(__name__)
 
 
 class MappingProcessor:
-    """Processes mapping files to extract patient data"""
-    
-    def __init__(self):
+    def __init__(self) -> None:
         self.config = Config()
-        self.mapping_data = None
-        self.field_mappings = {}
-        
-    def load_mapping_file(self, mapping_file_path: Path) -> bool:
+        # Core dictionaries
+        self.demographics: Dict[str, Dict[str, Any]] = {}
+        self.documents_by_filename: Dict[str, Dict[str, Any]] = {}
+
+    def load_mapping_files(
+        self, single_mapping_file: Optional[Path] = None
+    ) -> None:
+        """Load mapping file(s).
+        If single_mapping_file is provided, load only that; otherwise
+        load any mapping files found under project's data/ folder.
         """
-        Load mapping file (Excel or CSV) and identify field types
-        
-        Args:
-            mapping_file_path: Path to the mapping file
-            
-        Returns:
-            bool: True if successful, False otherwise
-        """
-        try:
-            logger.info(f"Loading mapping file: {mapping_file_path}")
-            
-            if not mapping_file_path.exists():
-                logger.error(f"Mapping file not found: {mapping_file_path}")
-                return False
-            
-            # Read the file based on extension
-            if mapping_file_path.suffix.lower() in ['.xlsx', '.xls']:
-                self.mapping_data = pd.read_excel(mapping_file_path)
-            elif mapping_file_path.suffix.lower() in ['.csv', '.tsv']:
-                separator = '\t' if mapping_file_path.suffix.lower() == '.tsv' else ','
-                self.mapping_data = pd.read_csv(mapping_file_path, sep=separator)
-            else:
-                logger.error(f"Unsupported mapping file format: {mapping_file_path.suffix}")
-                return False
-            
-            # Identify field mappings
-            self._identify_field_mappings()
-            
-            logger.info(f"Successfully loaded mapping file with {len(self.mapping_data)} records")
-            logger.info(f"Identified field mappings: {self.field_mappings}")
-            
-            return True
-            
-        except Exception as e:
-            logger.error(f"Error loading mapping file {mapping_file_path}: {str(e)}")
-            return False
-    
-    def _identify_field_mappings(self):
-        """Identify which columns correspond to which field types"""
-        self.field_mappings = {}
-        
-        for column in self.mapping_data.columns:
-            field_type = self.config.get_field_type(column)
-            if field_type != 'unknown':
-                self.field_mappings[field_type] = column
-                logger.debug(f"Mapped column '{column}' to field type '{field_type}'")
-    
-    def get_patient_by_id(self, patient_id: str) -> Optional[Dict[str, Any]]:
-        """
-        Get patient information by ID
-        
-        Args:
-            patient_id: Patient identifier
-            
-        Returns:
-            Dict with patient information or None if not found
-        """
-        if self.mapping_data is None or 'id' not in self.field_mappings:
-            return None
-        
-        try:
-            # Convert patient_id to string for comparison
-            patient_id_str = str(patient_id).strip()
-            
-            # Search for exact match first
-            id_column = self.field_mappings['id']
-            mask = self.mapping_data[id_column].astype(str).str.strip() == patient_id_str
-            matches = self.mapping_data[mask]
-            
-            if len(matches) > 0:
-                patient_data = matches.iloc[0].to_dict()
-                return self._normalize_patient_data(patient_data)
-            
-            # If no exact match, try partial matches
-            mask = self.mapping_data[id_column].astype(str).str.contains(patient_id_str, na=False, case=False)
-            matches = self.mapping_data[mask]
-            
-            if len(matches) > 0:
-                logger.warning(f"Found partial match for ID {patient_id}")
-                patient_data = matches.iloc[0].to_dict()
-                return self._normalize_patient_data(patient_data)
-            
-            return None
-            
-        except Exception as e:
-            logger.error(f"Error searching for patient ID {patient_id}: {str(e)}")
-            return None
-    
-    def get_patient_by_filename(self, filename: str) -> Optional[Dict[str, Any]]:
-        """
-        Get patient information by filename
-        
-        Args:
-            filename: Filename to search for
-            
-        Returns:
-            Dict with patient information or None if not found
-        """
-        if self.mapping_data is None or 'filename' not in self.field_mappings:
-            return None
-        
-        try:
-            filename_clean = Path(filename).stem.lower()
-            filename_column = self.field_mappings['filename']
-            
-            # Search for exact filename match
-            mask = self.mapping_data[filename_column].astype(str).str.lower().str.contains(filename_clean, na=False)
-            matches = self.mapping_data[mask]
-            
-            if len(matches) > 0:
-                patient_data = matches.iloc[0].to_dict()
-                return self._normalize_patient_data(patient_data)
-            
-            return None
-            
-        except Exception as e:
-            logger.error(f"Error searching for filename {filename}: {str(e)}")
-            return None
-    
-    def get_patient_by_name(self, first_name: str, last_name: str) -> Optional[Dict[str, Any]]:
-        """
-        Get patient information by name
-        
-        Args:
-            first_name: Patient's first name
-            last_name: Patient's last name
-            
-        Returns:
-            Dict with patient information or None if not found
-        """
-        if self.mapping_data is None:
-            return None
-        
-        try:
-            matches = self.mapping_data.copy()
-            
-            # Filter by last name if mapping exists
-            if 'lastname' in self.field_mappings:
-                lastname_column = self.field_mappings['lastname']
-                mask = matches[lastname_column].astype(str).str.lower().str.contains(last_name.lower(), na=False)
-                matches = matches[mask]
-            
-            # Filter by first name if mapping exists
-            if 'firstname' in self.field_mappings and len(matches) > 0:
-                firstname_column = self.field_mappings['firstname']
-                mask = matches[firstname_column].astype(str).str.lower().str.contains(first_name.lower(), na=False)
-                matches = matches[mask]
-            
-            if len(matches) > 0:
-                patient_data = matches.iloc[0].to_dict()
-                return self._normalize_patient_data(patient_data)
-            
-            return None
-            
-        except Exception as e:
-            logger.error(f"Error searching for patient name {first_name} {last_name}: {str(e)}")
-            return None
-    
-    def _normalize_patient_data(self, patient_data: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Normalize patient data to standard format
-        
-        Args:
-            patient_data: Raw patient data from mapping file
-            
-        Returns:
-            Normalized patient data dictionary
-        """
-        normalized = {
-            'id': '',
-            'firstname': '',
-            'lastname': '',
-            'dob': '',
-            'filename': '',
-            'raw_data': patient_data
-        }
-        
-        # Extract data based on field mappings
-        for field_type, column_name in self.field_mappings.items():
-            if column_name in patient_data and pd.notna(patient_data[column_name]):
-                value = str(patient_data[column_name]).strip()
-                
-                if field_type == 'dob':
-                    # Normalize date format
-                    normalized_date = self._normalize_date(value)
-                    normalized[field_type] = normalized_date if normalized_date else value
-                else:
-                    normalized[field_type] = value
-        
-        return normalized
-    
-    def _normalize_date(self, date_str: str) -> Optional[str]:
-        """
-        Normalize date to MM-DD-YYYY format
-        
-        Args:
-            date_str: Date string in various formats
-            
-        Returns:
-            Normalized date string or None if parsing fails
-        """
-        import datetime
-        
-        for date_format in self.config.INPUT_DATE_FORMATS:
+        sources = []
+        if single_mapping_file and single_mapping_file.exists():
+            sources = [single_mapping_file]
+        else:
+            data_dir = self.config.ROOT_DIR / 'data'
+            if data_dir.exists():
+                for p in data_dir.rglob('*'):
+                    if p.is_file() and self.config.is_mapping_file(p):
+                        sources.append(p)
+
+        for p in sources:
             try:
-                parsed_date = datetime.datetime.strptime(date_str, date_format)
-                return parsed_date.strftime(self.config.OUTPUT_DATE_FORMAT)
-            except ValueError:
-                continue
-        
-        logger.warning(f"Could not parse date: {date_str}")
-        return None
-    
-    def search_all_patients(self, search_term: str) -> List[Dict[str, Any]]:
+                self._load_single_mapping(p)
+                logger.info("Loaded mapping: %s", p)
+            except Exception as e:
+                logger.error("Failed loading mapping %s: %s", p, e)
+
+    def load_mapping_from_directories(self, directories: list[Path]) -> None:
+        """Scan the given directories for mapping files and load them.
+
+        This enables auto-ingestion of JSON/CSV/Excel mapping files that
+        were extracted from archives during the discovery step.
         """
-        Search for patients across all fields
-        
-        Args:
-            search_term: Term to search for
-            
-        Returns:
-            List of matching patient records
-        """
-        if self.mapping_data is None:
-            return []
-        
-        matches = []
-        search_term_lower = search_term.lower()
-        
-        try:
-            for _, row in self.mapping_data.iterrows():
-                row_dict = row.to_dict()
-                
-                # Search across all mapped fields
-                for field_type, column_name in self.field_mappings.items():
-                    if column_name in row_dict and pd.notna(row_dict[column_name]):
-                        value = str(row_dict[column_name]).lower()
-                        if search_term_lower in value:
-                            normalized_data = self._normalize_patient_data(row_dict)
-                            if normalized_data not in matches:
-                                matches.append(normalized_data)
-                            break
-            
-            return matches
-            
-        except Exception as e:
-            logger.error(f"Error searching for term {search_term}: {str(e)}")
-            return []
-    
-    def get_statistics(self) -> Dict[str, Any]:
-        """
-        Get statistics about the mapping data
-        
-        Returns:
-            Dictionary with mapping statistics
-        """
-        if self.mapping_data is None:
-            return {}
-        
-        stats = {
-            'total_records': len(self.mapping_data),
-            'identified_fields': self.field_mappings,
-            'columns': list(self.mapping_data.columns),
-            'missing_data': {}
+        files_to_load: list[Path] = []
+        for d in directories:
+            try:
+                if not d or not d.exists():
+                    continue
+                for p in d.rglob('*'):
+                    if p.is_file() and self.config.is_mapping_file(p):
+                        files_to_load.append(p)
+            except Exception as e:
+                logger.warning("Skipping mapping scan in %s: %s", d, e)
+        for p in files_to_load:
+            try:
+                self._load_single_mapping(p)
+                logger.info("Loaded mapping from extracted: %s", p)
+            except Exception as e:
+                logger.error("Failed loading extracted mapping %s: %s", p, e)
+
+    def _load_single_mapping(self, path: Path) -> None:
+        ext = path.suffix.lower()
+        if ext in ('.xlsx', '.xls'):
+            self.demographics.update(ExcelMapper.load_excel_mapping(path))
+        elif ext == '.csv':
+            df = pd.read_csv(path)
+            self._ingest_dataframe(df)
+        elif ext == '.json':
+            with open(path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            if isinstance(data, list):
+                df = pd.DataFrame(data)
+                self._ingest_dataframe(df)
+            elif isinstance(data, dict):
+                # Expect id -> info mapping
+                for k, v in data.items():
+                    if isinstance(v, dict):
+                        rec = v.copy()
+                        rec['id'] = rec.get('id', k)
+                        self._ingest_record(rec)
+        else:
+            logger.warning("Unsupported mapping file: %s", path)
+
+    def _ingest_dataframe(self, df: pd.DataFrame) -> None:
+        for _, row in df.iterrows():
+            rec = {str(k): row[k] for k in df.columns}
+            self._ingest_record(rec)
+
+    def _ingest_record(self, rec: Dict[str, Any]) -> None:
+        # Normalize keys
+        norm = {
+            str(k).strip(): ('' if pd.isna(v) else str(v).strip())
+            for k, v in rec.items()
         }
-        
-        # Calculate missing data statistics
-        for field_type, column_name in self.field_mappings.items():
-            if column_name in self.mapping_data.columns:
-                missing_count = self.mapping_data[column_name].isna().sum()
-                stats['missing_data'][field_type] = {
-                    'column': column_name,
-                    'missing_count': int(missing_count),
-                    'missing_percentage': round((missing_count / len(self.mapping_data)) * 100, 2)
-                }
-        
-        return stats
-    
-    def validate_mapping_file(self) -> Tuple[bool, List[str]]:
-        """
-        Validate the mapping file structure
-        
-        Returns:
-            Tuple of (is_valid, list_of_issues)
-        """
-        issues = []
-        
-        if self.mapping_data is None:
-            return False, ["No mapping data loaded"]
-        
-        # Check if at least one identification field is present
-        id_fields = ['id', 'filename']
-        has_id_field = any(field in self.field_mappings for field in id_fields)
-        
-        if not has_id_field:
-            issues.append("No identification field found (ID or filename)")
-        
-        # Check if name fields are present
-        name_fields = ['firstname', 'lastname']
-        missing_name_fields = [field for field in name_fields if field not in self.field_mappings]
-        
-        if missing_name_fields:
-            issues.append(f"Missing name fields: {', '.join(missing_name_fields)}")
-        
-        # Check for empty data
-        if len(self.mapping_data) == 0:
-            issues.append("Mapping file is empty")
-        
-        # Check for duplicate IDs if ID field exists
-        if 'id' in self.field_mappings:
-            id_column = self.field_mappings['id']
-            duplicate_count = self.mapping_data.duplicated(subset=[id_column]).sum()
-            if duplicate_count > 0:
-                issues.append(f"Found {duplicate_count} duplicate IDs")
-        
-        return len(issues) == 0, issues
+        # If looks like demographics
+        pid = norm.get('PatientID') or norm.get('patient_id') or norm.get('id')
+        ln = norm.get('LastName') or norm.get('lastname')
+        fn = norm.get('FirstName') or norm.get('firstname')
+        dob = norm.get('DOB') or norm.get('dob')
+        filename = norm.get('Filename') or norm.get('filename')
+
+        if filename and (ln or fn or pid):
+            key = Path(filename).name.lower()
+            self.documents_by_filename[key] = {
+                'id': pid or '',
+                'lastname': (ln or '').title(),
+                'firstname': (fn or '').title(),
+                'dob': dob or '',
+                'LastName': (ln or '').title(),
+                'FirstName': (fn or '').title(),
+                'DOB': dob or '',
+            }
+        if pid and (ln or fn):
+            try:
+                pid_str = str(int(float(pid)))
+            except Exception:
+                pid_str = str(pid)
+            self.demographics[pid_str] = {
+                'id': pid_str,
+                'lastname': (ln or '').title(),
+                'firstname': (fn or '').title(),
+                'dob': dob or '',
+                'LastName': (ln or '').title(),
+                'FirstName': (fn or '').title(),
+                'DOB': dob or '',
+            }
+
+    def smart_patient_lookup(self, file_path: Path) -> Dict[str, Any]:
+        """Try filename-based mapping first, then ID in name, then nothing."""
+        name = file_path.name.lower()
+        # 1. Direct filename mapping
+        if name in self.documents_by_filename:
+            return {
+                'found': True,
+                'patient_info': self.documents_by_filename[name],
+                'strategy': 'filename'
+            }
+        # 2. Search for id pattern and map by demographics
+        pid = self._extract_id_from_name(name)
+        if pid and pid in self.demographics:
+            return {
+                'found': True,
+                'patient_info': self.demographics[pid],
+                'strategy': 'id_in_name'
+            }
+        return {'found': False, 'patient_info': {}, 'strategy': 'none'}
+
+    def _extract_id_from_name(self, name: str) -> Optional[str]:
+        m = re.search(r'(?:^|[^\d])(\d{4,})(?:[^\d]|$)', name)
+        if m:
+            return m.group(1)
+        return None
+

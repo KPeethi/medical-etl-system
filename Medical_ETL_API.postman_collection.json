@@ -1,0 +1,48 @@
+{
+  "info": {
+    "name": "Medical ETL API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Run ETL",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "url": {
+          "raw": "http://127.0.0.1:8000/run-etl",
+          "protocol": "http",
+          "host": ["127", "0", "0", "1"],
+          "port": "8000",
+          "path": ["run-etl"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"source\": \"C:\\\\Users\\\\kulka\\\\Downloads\\\\Dataset1_ClassicExcelMap\",\n  \"dest\": \"D:\\\\ETL_Output\\\\Dataset1_ClassicExcelMap\",\n  \"mapping\": \"C:\\\\Users\\\\kulka\\\\Downloads\\\\Dataset1_ClassicExcelMap\\\\demographics.xlsx\",\n  \"dry_run\": false\n}"
+        }
+      }
+    },
+    {
+      "name": "Inspect Dataset",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "url": {
+          "raw": "http://127.0.0.1:8000/inspect",
+          "protocol": "http",
+          "host": ["127", "0", "0", "1"],
+          "port": "8000",
+          "path": ["inspect"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"source\": \"C:\\\\Users\\\\kulka\\\\Downloads\\\\Dataset4_JSON_SelfMapping.zip\"\n}"
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+path,size_mb,is_large,is_corrupt,file_type,remark
+C:\Users\kulka\Downloads\ETL\temp\smoke_input\doe.john1990-05-20.jpg,0.0,no,yes,jpg,image_header_missing
+C:\Users\kulka\Downloads\ETL\temp\smoke_input\garcia.maria01011980_0001.png,0.0,no,yes,png,image_header_missing
+C:\Users\kulka\Downloads\ETL\temp\smoke_input\kulkarni.preethi01-13-1999.2467.jpg,0.0,no,yes,jpg,image_header_missing
+C:\Users\kulka\Downloads\ETL\temp\smoke_input\o'neill.mary02-14-1975_abc.tif,0.0,no,yes,tif,image_header_missing
+C:\Users\kulka\Downloads\ETL\temp\smoke_input\smith.anna_12-31-1985.docx,0.0,no,no,docx,
+C:\Users\kulka\Downloads\ETL\temp\smoke_input\unparsedfile_001.pdf,0.0,no,yes,pdf,pdf_header_missing
