@@ -1,0 +1,196 @@
+What you’re missing (to go from “works” → “enterprise-ready”)
+1) Security & Compliance (HIPAA/SOC2/21 CFR Part 11 vibes)
+
+End-to-end encryption: TLS in transit; AES-256 at rest (including logs, temp/OCR caches).
+
+Secrets mgmt: no .env lying around—use Windows Credential Manager/Azure Key Vault/AWS KMS.
+
+RBAC & least privilege: operators vs auditors vs admins (separate duties).
+
+Tamper-evident audit: append-only logs with hash chaining (integrity column), time sync (UTC).
+
+PHI minimization: redact/exclude PII from debug logs; rotate log retention; legal holds.
+
+BAA and policy docs: access reviews, quarterly key rotation, incident response runbook.
+
+2) Data Governance, Lineage & Catalog
+
+End-to-end lineage: source path → Transform decision → patient folder path → DW row; store a content hash and provenance ID per file.
+
+Data catalog: a small metadata UI or table to discover “what we ingested, when, from where.”
+
+Retention & purging policy: Bronze/Silver temp windows; Gold is canonical; legal hold flags.
+
+3) Interoperability Standards (to avoid bespoke logic later)
+
+FHIR (Patient/DocumentReference/Media) mapping for downstream exchange.
+
+HL7 v2 (for some labs) + CDA/CCD (you already do CCDA → PDF).
+
+DICOM detection and basic header parsing for imaging (even if you don’t become a PACS).
+
+UMLS/SNOMED/LOINC hooks (optional) if you ever do semantic classification.
+
+4) Data Quality Framework (guardrails, not vibes)
+
+Rule engine (Great Expectations or custom):
+
+DOB not default (≠ 1900-01-01)
+
+PatientID uniqueness
+
+File extension whitelist
+
+OCR confidence ≥ threshold for “OCR-derived identity”
+
+DQ dashboard + fail-fast thresholds (e.g., >10% unmapped = stop the run).
+
+5) Observability & SRE
+
+Metrics: throughput, avg file latency, queue depth, OCR failure rate, dup ratio, %unmapped.
+
+Tracing: job → task → file span (OpenTelemetry) to pinpoint slow stages.
+
+Alerting: SLOs with alerts (e.g., >2% failures in last 30m, queue backlog > N, disk ≥ 80%).
+
+Backpressure: pause extract if load/queue spikes; configurable concurrency per practice.
+
+6) Workflow UX (humans-in-the-loop where it matters)
+
+Review Queue UI:
+
+_unmapped triage (pick patient, fix DOB, re-run single file).
+
+_bad_dob correction.
+
+Duplicates inspector (side-by-side hash/preview).
+
+One-click reprocess: file/patient/session. Full audit trail of who did what.
+
+7) Extensibility & Config Discipline
+
+Plugin architecture: “Classifier”, “IdentityResolver”, “ModuleResolver”, “Converter” as plug-ins (entry points) so you don’t edit core every time.
+
+Versioned configs: configs/<practice>/<version>.yml; store config hash in every log row.
+
+Feature flags: toggle OCR, SHA policy, CCDA converter per practice at runtime.
+
+8) Storage & Integrity
+
+Content-addressed storage option (hash-based filenames) to guarantee immutability.
+
+Manifest per run (JSON) with all file hashes; signed with a service key for integrity.
+
+Large file strategy: streaming copy, partial hashing (first N MB) + full hash on low-load hours.
+
+9) Advanced Intelligence (later, but roadmap it)
+
+Document classification (lightweight NLP) → auto module; teachable rules by practice.
+
+Entity extraction (Name/DOB/MRN) from OCR with confidence scoring + fallback heuristics.
+
+De-identification mode (for analytics exports) with reversible tokenization (key vault).
+
+10) Edge Cases You’ll Meet
+
+Password-protected PDFs, corrupted TIFFs, OLE embedded docs, 0-byte files, weird Unicode paths.
+
+Time zones & clocks (always log UTC; show local only in UI).
+
+Patient merge/split events (maiden names, legal name change): maintain PatientAltID table.
+
+Re-ingest of “same file, different location”: idempotency by content hash, not path.
+
+11) Testing, Release & DR
+
+Synthetic PHI dataset generator (50–500 patients, noisy filenames, nested ZIPs).
+
+Canary runs: 100 files before 50k.
+
+CI/CD with container scan (Trivy/Grype) + SBOM.
+
+Backups & DR: Bronze/Silver/Gold + logs snapshotted; restore drill quarterly.
+
+12) Scale & Cost
+
+Concurrency caps per stage; OCR worker pool with queue; cache OCR text by file hash.
+
+Batch size tuning for SSIS loads; partition facts by SessionKey/Date.
+
+Cost tags + run summaries (CPU time, job duration) per practice.
+
+Concrete upgrades to add now (quick wins)
+
+Security hardening
+
+Flip to TLS everywhere; encrypt temp dirs; move secrets to Vault/KMS.
+
+Decision + Integrity columns
+
+Add provenance_id, config_hash, content_sha256 to your logs & facts.
+
+DQ rules (starter)
+
+Implement 6 assertions (DOB valid, ext whitelist, file >0 bytes, OCR confidence, module resolved, dedupe policy hit rate).
+
+Review Queue
+
+Minimal Flask admin page: list _unmapped / _bad_dob; fix & reprocess.
+
+Observability
+
+Expose /metrics (Prometheus); dashboards for backlog, success %, unmapped %.
+
+Idempotent job keys
+
+job_id, run_id, attempt triplet; safe retries; exactly-once writes to DW.
+
+Config versioning
+
+Store config JSON + hash in REF_MappingConfiguration; reference key in each FACT_FileProcessing.
+
+Content manifests
+
+Write a signed manifest.json (file path, size, hash, timestamp) per session.
+
+DICOM + password-PDF handling
+
+Detect & shunt to quarantine with a clear reason + UI resolution step.
+
+Canary mode
+
+--canary 100 flag that processes first 100 files, prints DQ summary, requires explicit --real to proceed.
+
+Tiny schema tweaks (to support the above)
+
+FACT_FileProcessing: add ProvenanceID NVARCHAR(64), ConfigHash NVARCHAR(64), ContentHash NVARCHAR(64), OcrConfidence DECIMAL(5,2), ConverterVersion NVARCHAR(20).
+
+AUDIT_HIPAALog: add IntegrityChainHash NVARCHAR(64); store previous row hash for tamper-evidence.
+
+REF_MappingConfiguration: ensure ConfigurationValue stores full config JSON; compute and persist ConfigHash.
+
+New REF_FileManifest (per session): (SessionKey, FilePath, ContentHash, SizeBytes, CreatedUTC).
+
+Operability checklist (what “done” really means)
+
+ All services run under least-privilege service accounts.
+
+ No PHI in debug logs; redaction tested.
+
+ Idempotent re-runs proven on a 10k-file dataset.
+
+ Canary, dry-run, and real-run paths all exercised.
+
+ DR restore test completed end-to-end (Bronze→Gold + DW).
+
+ DQ dashboard shows <2% unmapped steady-state.
+
+ Audit trail passes internal HIPAA checklist.
+
+If you want, I can hand you:
+
+a DQ rules config (Great Expectations style or pure-Python assertions),
+
+a minimal Review Queue Flask page (approve/fix/reprocess),
+
+and schema diffs for the columns above plus a quick SSIS package patch to land them.

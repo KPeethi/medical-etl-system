@@ -1,0 +1,268 @@
+love it. here’s the **Option A — Enterprise-Lite MVP** laid out so you can actually ship it, not just vibe with diagrams. crisp, modular, HIPAA-friendly, and ready for clinics.
+
+---
+
+# A) What you’ll ship (scope)
+
+**Goal:** Production-usable MVP that routes files into patient folders, lets humans fix the edge cases, and logs/audits everything cleanly.
+**Not included yet:** FHIR/HL7, DICOM parsing, heavy OCR/ML. Those are phase-2.
+
+## Core deliverables
+
+1. **Router Service (Python)** — the engine: extract → transform (identity, modules, dedupe) → decisions → copy.
+2. **Review Queue UI (Flask web app)** — fix *Unmapped / Bad DOB / Duplicates* with one click, then reprocess.
+3. **Audit + DW tables (lite)** — append-only facts; provenance; SSIS-ready views.
+4. **Security baseline** — PHI-safe logging, encryption hooks, least privilege.
+5. **Ops niceties** — dry-run, canary, run summaries, configurable concurrency.
+
+---
+
+# B) Architecture (Hybrid)
+
+```
+Local Worker (per practice/clinic)
+  - router_service
+  - watches source shares / runs on schedule
+  - never deletes source
+
+Central Control (Flask UI + DB)
+  - review queue (unmapped, dupes, bad DOB)
+  - audit/events dashboard
+  - API for job start/stop, reprocess
+  - SSIS/SQL DW for reporting
+```
+
+---
+
+# C) Source tree (what I’ll generate for you)
+
+```
+medical-etl-mvp/
+├─ router_service/
+│  ├─ universal_router.py
+│  ├─ lib/
+│  │  ├─ transform_core.py         # T you’ve seen
+│  │  ├─ identity.py               # roster+filename parsers
+│  │  ├─ modules.py                # module resolver
+│  │  ├─ dedupe.py                 # size/sha policy
+│  │  ├─ copier.py                 # safe copy/write
+│  │  ├─ logger.py                 # CSV + SQL appender
+│  │  └─ security.py               # redaction, encrypt temp
+│  ├─ configs/
+│  │  ├─ default.yml
+│  │  └─ practice_morse.yml
+│  └─ cli_examples/
+│     └─ run_morse.cmd
+├─ review_ui/
+│  ├─ app.py                       # Flask
+│  ├─ views/ (unmapped, dupes, audit)
+│  ├─ static/, templates/
+│  └─ api/ (reprocess endpoints)
+├─ dw/
+│  ├─ schema_patch.sql             # DIM/FACT minimal
+│  ├─ views.sql                    # patient export, audit
+│  └─ procs.sql                    # SP_StartSession, UpsertPatient
+├─ deploy/
+│  ├─ docker-compose.yml           # central UI + DB
+│  ├─ .env.example
+│  └─ service-windows.ps1          # nssm to run router as service
+├─ tests/
+│  ├─ sample_source/               # messy fake clinic data
+│  ├─ sample_roster.xlsx
+│  └─ run_canary.cmd
+└─ README.md
+```
+
+---
+
+# D) Config (per practice, no code changes)
+
+```yaml
+# configs/practice_morse.yml
+practice_id: "MORSE_MORROW_Practice"
+naming:
+  patient_folder: "{Last}, {First} {DOB_MM}-{DOB_DD}-{DOB_YYYY}"
+  strip_middle_names: true
+identity:
+  roster:
+    type: excel
+    path: "\\server\rosters\morse_roster.xlsx"
+    autodetect_headers: true
+    hints:
+      last: ["last","last_name","surname"]
+      first: ["first","first_name","given"]
+      dob: ["dob","date_of_birth","birth"]
+module_detection:
+  folder_keywords:
+    labs: ["lab","labs","pathology"]
+    imaging: ["xray","ct","mri","imaging","tif"]
+    notes: ["note","progress","encounter"]
+  filename_patterns:
+    labs: [".*\\bLAB\\b.*"]
+dedupe_policy: "same_size_same_module"
+include_exts: [".pdf",".tif",".tiff",".jpg",".jpeg",".png",".doc",".docx",".rtf",".txt",".xlsx",".csv",".xml"]
+max_depth: 12
+performance:
+  workers: 24
+  quick_hash_bytes: 4194304
+safety:
+  source_readonly_check: true
+  dry_run_default: true
+review_queue:
+  endpoint: "http://central-ui.local/api/reprocess"
+logging:
+  csv_dir: "\\server\logs\morse"
+  redaction: true
+```
+
+---
+
+# E) How you run it (MVP)
+
+**Dry-run (default):**
+
+```bat
+python router_service\universal_router.py ^
+  --src "\\server\practice\source" ^
+  --dst "\\server\practice\Patients" ^
+  --config "router_service\configs\practice_morse.yml" ^
+  --log "\\server\practice\Log" ^
+  --max-depth 12 --workers 24
+```
+
+**Real run:**
+
+```bat
+python router_service\universal_router.py ^
+  --src "\\server\practice\source" ^
+  --dst "\\server\practice\Patients" ^
+  --config "router_service\configs\practice_morse.yml" ^
+  --log "\\server\practice\Log" ^
+  --real
+```
+
+**Canary first 100 files:**
+
+```bat
+... --canary 100 --real
+```
+
+---
+
+# F) What the Review Queue gives you (Phase-1)
+
+* **Unmapped:** list (filename, guessed name/DOB, reason). → Select patient from roster → Reprocess 1 click.
+* **Bad DOB:** enter corrected DOB → Reprocess.
+* **Duplicate inspector:** if “same name diff hash” → preview + keep/rename.
+* **Reprocess controls:** per-file / per-patient / per-session.
+* **Audit page:** who changed what, when (UTC), with before/after.
+
+Minimal endpoints:
+
+```
+POST /api/reprocess/file     { file_id, reason, fix }
+POST /api/reprocess/patient  { patient_id, session_id }
+GET  /api/unmapped?session=…
+GET  /api/audit?session=…
+```
+
+---
+
+# G) Logging & SSIS (exact columns)
+
+**CSV log per run (SSIS-ready):**
+
+```
+run_id, run_started_utc, event_time_utc,
+invoked_by_user, host_platform, python_version,
+script_version, mode, practice_id,
+src_root, dst_root, src_path, rel_path, dst_path,
+nested_level, action, reason,
+patient_key, last, first, dob, module,
+file_ext, file_size_bytes, size_quick_hash, sha256_full,
+include_exts, exclude_exts, max_depth, workers,
+provenance_id, config_hash
+```
+
+**Action enums (normalized):**
+
+* `COPY`, `SKIP_DUP`, `COPY_DUP_NAME_DIFFHASH`, `MOVE_TO_UNMAPPED`, `MOVE_TO_BAD_DOB`, `ERROR`
+
+**DW patch (delta over your schema):**
+
+* `FACT_FileProcessing` add: `ProvenanceID NVARCHAR(64)`, `ConfigHash NVARCHAR(64)`, `ContentHash NVARCHAR(64)`, `OcrConfidence DECIMAL(5,2) NULL`, `RouterDecision NVARCHAR(50)`, `NameParsingSource NVARCHAR(20)`
+* `REF_MappingConfiguration` add: `ConfigHash NVARCHAR(64)`
+* **New** `REF_FileManifest(SessionKey, FilePath, ContentHash, SizeBytes, CreatedUTC)`
+
+**Views:** `VW_SSISPatientExport`, `VW_SSISAuditExport` (you already drafted).
+
+---
+
+# H) Security baseline (day-1, no excuses)
+
+* **PHI-safe logs:** never log raw OCR text or full names in DEBUG; redact with `security.redact()`.
+* **Encryption hooks:** at-rest encryption for temp/cache folders (OS/volume level) and a toggle to AES-zip quarantine.
+* **TLS:** enforce HTTPS for the central UI; self-signed acceptable in MVP; rotate later.
+* **Least privilege:** router runs as `svc_router`, read-only to source, write to destination/log only.
+* **UTC only:** all timestamps in UTC; UI shows local.
+
+---
+
+# I) Ops & SRE (just enough)
+
+* **Run summary:** totals by action, top reasons, elapsed seconds.
+* **Process heartbeat:** print every `--heartbeat-secs 10`.
+* **Retry policy:** 1 retry for transient IO; error otherwise goes to `ERROR` bucket.
+* **Backpressure:** `--workers` cap; optional `--max-mbps` later.
+* **Disk guard:** stop if free space < 10% (configurable).
+
+---
+
+# J) Testing kit (ships with repo)
+
+* **Synthetic practice dataset** (500 files): clean + cursed filenames, nested zips, 10% dupes, 8% unmapped.
+* **Golden rosters** with weird header names to prove auto-detect.
+* **Expected run report** to validate action counts.
+* **SSIS sample package** pointing at the CSV to prove load.
+
+---
+
+# K) 2-week build plan (realistic)
+
+**Week 1**
+
+* Router polish: T core + copier + policy + logs
+* Config system + practice override
+* CSV/SQL logger + run summary
+* Review UI scaffolding: list Unmapped/BadDOB + reprocess API
+* DW schema patch + basic SSIS load test
+
+**Week 2**
+
+* Duplicate inspector (lite)
+* Security redaction + TLS for UI
+* Canary/dry-run guardrails
+* Install scripts (Windows service + docker-compose)
+* Test dataset + end-to-end runbook
+
+---
+
+# L) Quick FAQ
+
+* **OCR now or later?** Later. It’s slow and finicky; your filename/roster logic + manual review covers 90% fast.
+* **Why Hybrid?** Files stay on-prem; you still get central visibility. Happy IT + happy operations.
+* **How does reprocess work?** UI posts fix → router picks a “single-file job” with the original provenance → updates logs & DW.
+
+---
+
+# Your next step
+
+If this hits the mark, say **“Let’s build it”** and I’ll deliver:
+
+* the repo structure above,
+* `default.yml` + a `practice_morse.yml`,
+* a sample dataset,
+* a minimal Flask UI (unmapped + bad DOB), and
+* the SQL patch + SSIS sample.
+
+We’ll have a **runnable MVP** you can test on a small practice by end of Week 2.
