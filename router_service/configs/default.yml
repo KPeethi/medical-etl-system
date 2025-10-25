@@ -1,0 +1,49 @@
+practice_id: "DEFAULT_Practice"
+
+naming:
+  patient_folder: "{Last}, {First} {DOB_MM}-{DOB_DD}-{DOB_YYYY}"
+  strip_middle_names: true
+
+identity:
+  roster:
+    type: excel
+    path: null
+    autodetect_headers: true
+    hints:
+      last: ["last", "last_name", "surname", "family_name"]
+      first: ["first", "first_name", "given", "given_name"]
+      dob: ["dob", "date_of_birth", "birth", "birthdate"]
+
+module_detection:
+  folder_keywords:
+    labs: ["lab", "labs", "laboratory", "pathology"]
+    imaging: ["xray", "x-ray", "ct", "mri", "imaging", "radiology", "tif", "images"]
+    notes: ["note", "notes", "progress", "encounter", "clinical"]
+    reports: ["report", "reports", "summary"]
+  filename_patterns:
+    labs: [".*\\bLAB\\b.*", ".*\\bPATH\\b.*"]
+    imaging: [".*\\bXRAY\\b.*", ".*\\bCT\\b.*", ".*\\bMRI\\b.*"]
+
+dedupe_policy: "same_size_same_module"
+
+include_exts: [".pdf", ".tif", ".tiff", ".jpg", ".jpeg", ".png", ".doc", ".docx", ".rtf", ".txt", ".xlsx", ".csv", ".xml", ".json"]
+
+exclude_exts: [".exe", ".dll", ".zip", ".7z", ".rar"]
+
+max_depth: 12
+
+performance:
+  workers: 8
+  quick_hash_bytes: 4194304
+
+safety:
+  source_readonly_check: true
+  dry_run_default: true
+
+review_queue:
+  endpoint: null
+
+logging:
+  csv_dir: "./logs"
+  redaction: true
+  enable_db_logging: true

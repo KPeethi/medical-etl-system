@@ -1,0 +1,45 @@
+practice_id: "MORSE_MORROW_Practice"
+
+naming:
+  patient_folder: "{Last}, {First} {DOB_MM}-{DOB_DD}-{DOB_YYYY}"
+  strip_middle_names: true
+
+identity:
+  roster:
+    type: excel
+    path: "./tests/sample_roster.xlsx"
+    autodetect_headers: true
+    hints:
+      last: ["last", "last_name", "surname"]
+      first: ["first", "first_name", "given"]
+      dob: ["dob", "date_of_birth", "birth"]
+
+module_detection:
+  folder_keywords:
+    labs: ["lab", "labs", "pathology"]
+    imaging: ["xray", "ct", "mri", "imaging", "tif"]
+    notes: ["note", "progress", "encounter"]
+  filename_patterns:
+    labs: [".*\\bLAB\\b.*"]
+
+dedupe_policy: "same_size_same_module"
+
+include_exts: [".pdf", ".tif", ".tiff", ".jpg", ".jpeg", ".png", ".doc", ".docx", ".rtf", ".txt", ".xlsx", ".csv", ".xml"]
+
+max_depth: 12
+
+performance:
+  workers: 24
+  quick_hash_bytes: 4194304
+
+safety:
+  source_readonly_check: true
+  dry_run_default: true
+
+review_queue:
+  endpoint: "http://localhost:5000/api/reprocess"
+
+logging:
+  csv_dir: "./logs"
+  redaction: true
+  enable_db_logging: true

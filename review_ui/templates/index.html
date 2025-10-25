@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Medical ETL Review Queue</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .stat-card {
+            border-left: 4px solid #007bff;
+            transition: transform 0.2s;
+        }
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .stat-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #007bff;
+        }
+        .table-responsive {
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        .badge-action {
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-dark bg-primary">
+        <div class="container-fluid">
+            <span class="navbar-brand mb-0 h1">Medical ETL Review Queue</span>
+        </div>
+    </nav>
+
+    <div class="container-fluid mt-4">
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card stat-card">
+                    <div class="card-body">
+                        <h6 class="card-subtitle mb-2 text-muted">Total Files</h6>
+                        <div class="stat-value" id="total-files">0</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stat-card">
+                    <div class="card-body">
+                        <h6 class="card-subtitle mb-2 text-muted">Copied</h6>
+                        <div class="stat-value text-success" id="copied">0</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stat-card">
+                    <div class="card-body">
+                        <h6 class="card-subtitle mb-2 text-muted">Unmapped</h6>
+                        <div class="stat-value text-warning" id="unmapped">0</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stat-card">
+                    <div class="card-body">
+                        <h6 class="card-subtitle mb-2 text-muted">Errors</h6>
+                        <div class="stat-value text-danger" id="errors">0</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <ul class="nav nav-tabs" id="mainTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="runs-tab" data-bs-toggle="tab" data-bs-target="#runs" type="button">Recent Runs</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="unmapped-tab" data-bs-toggle="tab" data-bs-target="#unmapped" type="button">Unmapped Files</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="bad-dob-tab" data-bs-toggle="tab" data-bs-target="#bad-dob" type="button">Bad DOB</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="audit-tab" data-bs-toggle="tab" data-bs-target="#audit" type="button">Audit Trail</button>
+            </li>
+        </ul>
+
+        <div class="tab-content" id="mainTabsContent">
+            <div class="tab-pane fade show active" id="runs" role="tabpanel">
+                <div class="card mt-3">
+                    <div class="card-header">
+                        <h5>Recent ETL Runs</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Run ID</th>
+                                        <th>Practice</th>
+                                        <th>Mode</th>
+                                        <th>Files</th>
+                                        <th>Copied</th>
+                                        <th>Unmapped</th>
+                                        <th>Start Time</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="runs-table-body">
+                                    <tr><td colspan="7" class="text-center">Loading...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tab-pane fade" id="unmapped" role="tabpanel">
+                <div class="card mt-3">
+                    <div class="card-header">
+                        <h5>Unmapped Files</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Source Path</th>
+                                        <th>Reason</th>
+                                        <th>File Type</th>
+                                        <th>Size</th>
+                                        <th>Timestamp</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="unmapped-table-body">
+                                    <tr><td colspan="5" class="text-center">Loading...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tab-pane fade" id="bad-dob" role="tabpanel">
+                <div class="card mt-3">
+                    <div class="card-header">
+                        <h5>Files with Bad DOB</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Source Path</th>
+                                        <th>Reason</th>
+                                        <th>Timestamp</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="bad-dob-table-body">
+                                    <tr><td colspan="3" class="text-center">Loading...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tab-pane fade" id="audit" role="tabpanel">
+                <div class="card mt-3">
+                    <div class="card-header">
+                        <h5>Audit Trail</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Timestamp</th>
+                                        <th>Action</th>
+                                        <th>Source</th>
+                                        <th>Destination</th>
+                                        <th>User</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="audit-table-body">
+                                    <tr><td colspan="5" class="text-center">Loading...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function loadStats() {
+            fetch('/api/stats')
+                .then(r => r.json())
+                .then(data => {
+                    document.getElementById('total-files').textContent = data.total_files || 0;
+                    document.getElementById('copied').textContent = data.copied || 0;
+                    document.getElementById('unmapped').textContent = data.unmapped || 0;
+                    document.getElementById('errors').textContent = data.errors || 0;
+                });
+        }
+
+        function loadRuns() {
+            fetch('/api/recent-runs')
+                .then(r => r.json())
+                .then(data => {
+                    const tbody = document.getElementById('runs-table-body');
+                    if (data.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="7" class="text-center">No runs found</td></tr>';
+                        return;
+                    }
+                    tbody.innerHTML = data.map(run => `
+                        <tr>
+                            <td><code>${run.run_id.substring(0, 8)}</code></td>
+                            <td>${run.practice_id || 'N/A'}</td>
+                            <td><span class="badge ${run.mode === 'DRY_RUN' ? 'bg-warning' : 'bg-success'}">${run.mode}</span></td>
+                            <td>${run.file_count}</td>
+                            <td>${run.copied}</td>
+                            <td>${run.unmapped}</td>
+                            <td>${new Date(run.start_time).toLocaleString()}</td>
+                        </tr>
+                    `).join('');
+                });
+        }
+
+        function loadUnmapped() {
+            fetch('/api/unmapped')
+                .then(r => r.json())
+                .then(data => {
+                    const tbody = document.getElementById('unmapped-table-body');
+                    if (data.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="5" class="text-center">No unmapped files</td></tr>';
+                        return;
+                    }
+                    tbody.innerHTML = data.map(file => `
+                        <tr>
+                            <td><small>${file.source_path}</small></td>
+                            <td>${file.reason}</td>
+                            <td><code>${file.file_extension}</code></td>
+                            <td>${(file.file_size / 1024).toFixed(1)} KB</td>
+                            <td>${new Date(file.timestamp).toLocaleString()}</td>
+                        </tr>
+                    `).join('');
+                });
+        }
+
+        function loadBadDob() {
+            fetch('/api/bad-dob')
+                .then(r => r.json())
+                .then(data => {
+                    const tbody = document.getElementById('bad-dob-table-body');
+                    if (data.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="3" class="text-center">No files with bad DOB</td></tr>';
+                        return;
+                    }
+                    tbody.innerHTML = data.map(file => `
+                        <tr>
+                            <td><small>${file.source_path}</small></td>
+                            <td>${file.reason}</td>
+                            <td>${new Date(file.timestamp).toLocaleString()}</td>
+                        </tr>
+                    `).join('');
+                });
+        }
+
+        function loadAudit() {
+            fetch('/api/audit')
+                .then(r => r.json())
+                .then(data => {
+                    const tbody = document.getElementById('audit-table-body');
+                    if (data.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="5" class="text-center">No audit records</td></tr>';
+                        return;
+                    }
+                    tbody.innerHTML = data.map(record => `
+                        <tr>
+                            <td><small>${new Date(record.timestamp).toLocaleString()}</small></td>
+                            <td><span class="badge badge-action bg-secondary">${record.action}</span></td>
+                            <td><small>${record.source_path || 'N/A'}</small></td>
+                            <td><small>${record.destination_path || 'N/A'}</small></td>
+                            <td>${record.user}</td>
+                        </tr>
+                    `).join('');
+                });
+        }
+
+        loadStats();
+        loadRuns();
+
+        document.getElementById('unmapped-tab').addEventListener('click', loadUnmapped);
+        document.getElementById('bad-dob-tab').addEventListener('click', loadBadDob);
+        document.getElementById('audit-tab').addEventListener('click', loadAudit);
+
+        setInterval(loadStats, 30000);
+    </script>
+</body>
+</html>
