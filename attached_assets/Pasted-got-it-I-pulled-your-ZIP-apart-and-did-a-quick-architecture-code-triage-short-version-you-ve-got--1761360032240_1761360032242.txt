@@ -1,0 +1,191 @@
+got it, I pulled your ZIP apart and did a quick architecture/code triage. short version: you’ve got a solid **Enterprise-Lite skeleton** in place (router libs, configs, review_ui stub, DW schema). to make it actually production-worthy, you’re ~80% there — just missing a few “plumbing + ops + security” pieces.
+
+here’s the no-fluff readout 👇
+
+# what’s already good
+
+* **Router libs present:** `identity.py`, `modules.py`, `dedupe.py`, `copier.py`, `security.py` (nice redaction patterns), `logger.py`.
+* **Configs:** `default.yml` + `practice_morse.yml` with sane knobs.
+* **DW schema (Postgres-style):** facts/dims/views + indexes.
+* **Review UI stub:** `review_ui/app.py` exists.
+
+# gaps to close (ranked)
+
+1. **Runtime & orchestration**
+
+   * ❌ no job queue: add **RQ (Redis Queue)** so Review UI can reprocess without blocking.
+   * ❌ no scheduler/runner: lightweight cron or “Start Run” endpoint that enqueues a job.
+
+2. **Deployment**
+
+   * ❌ no Docker/compose files: add `docker-compose.yml` for **db + redis + ui**; optional Caddy/Nginx for TLS.
+   * ❌ no env separation: add `.env` handling for DB URL, REDIS URL, secrets (already have dotenv; wire it through).
+
+3. **UI & API hygiene**
+
+   * ❌ auth/RBAC missing: at least Basic auth or JWT for MVP (admin vs reviewer).
+   * ❌ CSRF/security headers: add **Flask-Talisman** + CSRF (if you use forms).
+   * ❌ pagination & filters on review lists (unmapped/dupes), and **reprocess** endpoints.
+
+4. **Observability & ops**
+
+   * ❌ metrics: expose `/metrics` (Prometheus) — counts by action, queue depth, failures.
+   * ❌ disk guard: stop if free space < X% (configurable).
+   * ❌ retries/backoff: 1 retry for transient IO, then quarantine with clear reason.
+
+5. **Data integrity & governance**
+
+   * ❌ manifest per run: write **(path, size, sha256)** JSON + store in `file_manifest`.
+   * ❌ config provenance: compute `config_hash` and stamp every file event.
+   * ❌ UTC discipline: ensure all timestamps use `datetime.now(timezone.utc)`.
+
+6. **Review Queue**
+
+   * ❌ minimal screens: Unmapped, Bad DOB, Duplicates.
+   * ❌ “one-click reprocess”: post fix → enqueue job for a single file/patient/session.
+
+7. **Testing**
+
+   * ❌ sample dataset runner + “canary 100” mode.
+   * ❌ golden assertions: counts by action, % unmapped, dedupe hit rate.
+
+---
+
+# fix kit (drop-in snippets)
+
+## 1) docker compose (ui + postgres + redis)
+
+```yaml
+# deploy/docker-compose.yml
+services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: etl
+      POSTGRES_PASSWORD: etlpass
+      POSTGRES_DB: medical_etl
+    volumes: [pg:/var/lib/postgresql/data]
+    healthcheck: { test: ["CMD-SHELL","pg_isready -U etl -d medical_etl"], interval: 5s, timeout: 3s, retries: 10 }
+  redis:
+    image: redis:7
+  ui:
+    build: ../review_ui
+    environment:
+      DATABASE_URL: postgresql://etl:etlpass@db:5432/medical_etl
+      REDIS_URL: redis://redis:6379/0
+      FLASK_ENV: production
+    depends_on: [db, redis]
+    ports: ["8080:8080"]
+volumes: { pg: {} }
+```
+
+## 2) RQ job queue wiring
+
+```python
+# review_ui/app.py
+from flask import Flask
+from redis import Redis
+from rq import Queue
+import os
+
+app = Flask(__name__)
+redis = Redis.from_url(os.environ["REDIS_URL"])
+q = Queue("etl", connection=redis)
+
+@app.post("/api/reprocess/file")
+def reprocess_file():
+    data = request.get_json(force=True)
+    job = q.enqueue("router_service.universal_router.reprocess_one",
+                    file_event_id=data["file_event_id"], fix=data.get("fix"))
+    return {"job_id": job.get_id()}, 202
+```
+
+```python
+# review_ui/worker.py
+from redis import Redis
+from rq import Worker, Queue, Connection
+import os
+listen = ["etl"]
+with Connection(Redis.from_url(os.environ["REDIS_URL"])):
+    Worker(list(map(Queue, listen))).work()
+```
+
+> add `rq` to dependencies.
+
+## 3) config hash + manifest
+
+```python
+# router_service/lib/logger.py
+import hashlib, json
+def config_hash(cfg: dict) -> str:
+    return hashlib.sha256(json.dumps(cfg, sort_keys=True).encode()).hexdigest()[:16]
+
+def write_manifest(manifest_path, entries):
+    # entries: list of {path,size,sha256}
+    with open(manifest_path, "w", encoding="utf-8") as f:
+        json.dump({"entries": entries}, f, indent=2)
+```
+
+## 4) disk guard + UTC
+
+```python
+# router_service/universal_router.py
+import shutil, time
+from datetime import datetime, timezone
+
+def now_utc():
+    return datetime.now(timezone.utc)
+
+def ensure_disk(headroom_pct: int, path: str):
+    total, used, free = shutil.disk_usage(path)
+    if free/total*100 < headroom_pct:
+        raise RuntimeError(f"Low disk: {free/total*100:.1f}% free")
+
+# before copy loop
+ensure_disk(self.config.get("safety",{}).get("min_free_pct",10), self.dst_root)
+```
+
+## 5) basic auth + security headers
+
+```python
+# review_ui/app.py
+from flask import Flask, request, abort
+from functools import wraps
+from flask_talisman import Talisman
+
+app = Flask(__name__)
+Talisman(app, content_security_policy=None)  # sane defaults, HTTPS expected in prod
+
+def requires_auth(fn):
+    @wraps(fn)
+    def _w(*a, **k):
+        auth = request.authorization
+        if not auth or not (auth.username==os.getenv("UI_USER") and auth.password==os.getenv("UI_PASS")):
+            return abort(401)
+        return fn(*a, **k)
+    return _w
+```
+
+---
+
+# quick code-level nits I’d tighten
+
+* **redaction:** your PATH/PHI regex set is good; also redact query strings and headers in logs.
+* **dedupe:** support `sha256_across_modules` policy in addition to size-scoped.
+* **logger:** batch inserts to DB (or use COPY) for speed; keep CSV streaming for SSIS.
+* **modules:** merge folder+filename rules with preference order (you did), add per-practice overrides.
+* **identity:** add a strict DOB blocklist (`1900-01-01`, `1899-12-31`) → quarantine.
+
+---
+
+# prioritized punch-list (so you can ship)
+
+1. **Add docker compose** + **RQ worker** + wire env vars.
+2. **Implement /unmapped, /bad_dob, /duplicates** pages (paginate) + POST reprocess endpoints.
+3. **Manifest writer + config_hash** stamping into `file_event`.
+4. **Metrics + disk guard + UTC** across the board.
+5. **Basic auth + Talisman** for UI; secrets only via env.
+
+once those are in, you’re genuinely “Enterprise-Lite” and deployable.
+
+want me to generate the missing files (compose, worker, auth/talisman wiring, manifest helper, disk guard) as a ready-to-drop patch?
