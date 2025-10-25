@@ -12,9 +12,9 @@ class SecurityManager:
     ]
     
     PATH_PHI_PATTERNS = [
-        (r"(^|[/\\])([A-Z][A-Za-z''.-]{2,}),\s*([A-Z][A-Za-z''.-]{2,})[^/\\]*?(/|\\)", r'\1[PATIENT-REDACTED]\4'),
-        (r"(^|[/\\])([A-Z][A-Za-z''.-]{2,})[_ ]([A-Z][A-Za-z''.-]{2,})[^/\\]*?(/|\\)", r'\1[PATIENT-REDACTED]\4'),
-        (r"\b([A-Z][A-Za-z''.-]+),\s*([A-Z][A-Za-z''.-]+)(?=\s+\d{2}-\d{2}-\d{4}|/|\\)", '[NAME-REDACTED]'),
+        (r"(^|[/\\])((?=.*[A-Z])[A-Za-z''.-]{2,}),\s*((?=.*[A-Z])[A-Za-z''.-]{2,})[^/\\]*?(/|\\)", r'\1[PATIENT-REDACTED]\4'),
+        (r"(^|[/\\])((?=.*[A-Z])[A-Za-z''.-]{2,})[_ ]((?=.*[A-Z])[A-Za-z''.-]{2,})[^/\\]*?(/|\\)", r'\1[PATIENT-REDACTED]\4'),
+        (r"\b((?=.*[A-Z])[A-Za-z''.-]+),\s*((?=.*[A-Z])[A-Za-z''.-]+)(?=\s+\d{2}-\d{2}-\d{4}|/|\\)", '[NAME-REDACTED]'),
         (r'\b\d{4}-\d{2}-\d{2}\b', '[DOB-REDACTED]'),
         (r'\b\d{2}-\d{2}-\d{4}\b', '[DOB-REDACTED]'),
         (r'\b\d{2}/\d{2}/\d{4}\b', '[DOB-REDACTED]'),
@@ -42,7 +42,7 @@ class SecurityManager:
         redacted = str(path)
         
         for pattern, replacement in SecurityManager.PATH_PHI_PATTERNS:
-            redacted = re.sub(pattern, replacement, redacted, flags=re.IGNORECASE)
+            redacted = re.sub(pattern, replacement, redacted)
         
         for pattern, replacement in SecurityManager.PHI_PATTERNS:
             redacted = re.sub(pattern, replacement, redacted)
