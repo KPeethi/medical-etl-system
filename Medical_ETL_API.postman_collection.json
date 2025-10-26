@@ -1,0 +1,147 @@
+{
+  "info": {
+    "name": "Medical ETL API",
+    "description": "REST API for processing medical files from source to destination",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Health Check",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:5000/health",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "5000",
+          "path": ["health"]
+        },
+        "description": "Check if the API is running and database is connected"
+      }
+    },
+    {
+      "name": "Process Files - Dry Run",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"source\": \"C:/Users/kulka/Downloads/All_5_Dummy_Datasets/Dataset4_JSON_SelfMapping.zip\",\n  \"dest\": \"C:/Users/kulka/Downloads/All_5_Dummy_Datasets/dataset4slove_final\",\n  \"dry_run\": true\n}"
+        },
+        "url": {
+          "raw": "http://localhost:5000/api/process",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "5000",
+          "path": ["api", "process"]
+        },
+        "description": "Simulate file processing without actually copying files"
+      }
+    },
+    {
+      "name": "Process Files - Real Run with Mapping",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"source\": \"C:/Users/kulka/Downloads/All_5_Dummy_Datasets/Dataset4_JSON_SelfMapping.zip\",\n  \"dest\": \"C:/Users/kulka/Downloads/All_5_Dummy_Datasets/dataset4slove_final\",\n  \"dry_run\": false,\n  \"mapping\": \"C:/Users/kulka/Downloads/All_5_Dummy_Datasets/Dataset4_JSON_SelfMapping/Export/Mapping/demographics_index.json\"\n}"
+        },
+        "url": {
+          "raw": "http://localhost:5000/api/process",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "5000",
+          "path": ["api", "process"]
+        },
+        "description": "Actually process and copy files with custom mapping configuration"
+      }
+    },
+    {
+      "name": "Get Statistics",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:5000/api/stats",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "5000",
+          "path": ["api", "stats"]
+        },
+        "description": "Get overall processing statistics"
+      }
+    },
+    {
+      "name": "Get Unmapped Files",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:5000/api/unmapped",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "5000",
+          "path": ["api", "unmapped"]
+        },
+        "description": "Get list of files that could not be mapped to a patient"
+      }
+    },
+    {
+      "name": "Get Bad DOB Files",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:5000/api/bad-dob",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "5000",
+          "path": ["api", "bad-dob"]
+        },
+        "description": "Get files with invalid date of birth"
+      }
+    },
+    {
+      "name": "Get Duplicate Files",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:5000/api/duplicates",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "5000",
+          "path": ["api", "duplicates"]
+        },
+        "description": "Get duplicate files detected during processing"
+      }
+    },
+    {
+      "name": "Get Audit Trail",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:5000/api/audit",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "5000",
+          "path": ["api", "audit"]
+        },
+        "description": "Get full audit trail of all file operations"
+      }
+    }
+  ]
+}

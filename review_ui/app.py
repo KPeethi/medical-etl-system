@@ -5,9 +5,21 @@ Flask web application for managing unmapped files and duplicates
 """
 
 import os
+import sys
 import psycopg2
+import json
+import tempfile
+import shutil
+import zipfile
+import pandas as pd
+from pathlib import Path
 from flask import Flask, render_template, jsonify, request
 from datetime import datetime
+import argparse
+
+# Add router_service to path
+router_service_path = os.path.join(os.path.dirname(__file__), '..', 'router_service')
+sys.path.insert(0, router_service_path)
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SESSION_SECRET', 'dev-secret-key-change-in-production')
@@ -287,5 +299,220 @@ def health():
     except Exception as e:
         return jsonify({'status': 'unhealthy', 'error': str(e)}), 500
 
+def parse_mapping_file(mapping_path):
+    """Parse mapping file (JSON, Excel, or CSV) into config format"""
+    mapping_path = Path(mapping_path)
+    
+    if not mapping_path.exists():
+        raise ValueError(f"Mapping file not found: {mapping_path}")
+    
+    ext = mapping_path.suffix.lower()
+    
+    if ext == '.json':
+        with open(mapping_path, 'r', encoding='utf-8') as f:
+            mapping_data = json.load(f)
+            return mapping_data
+    
+    elif ext in ['.xlsx', '.xls']:
+        df = pd.read_excel(mapping_path)
+        mapping_data = {}
+        for _, row in df.iterrows():
+            if 'pattern' in df.columns and 'module' in df.columns:
+                mapping_data[str(row['pattern'])] = str(row['module'])
+        return {'module_mappings': mapping_data}
+    
+    elif ext == '.csv':
+        df = pd.read_csv(mapping_path)
+        mapping_data = {}
+        for _, row in df.iterrows():
+            if 'pattern' in df.columns and 'module' in df.columns:
+                mapping_data[str(row['pattern'])] = str(row['module'])
+        return {'module_mappings': mapping_data}
+    
+    else:
+        raise ValueError(f"Unsupported mapping file format: {ext}")
+
+def check_api_key():
+    """Verify API key if authentication is enabled"""
+    api_key_required = os.environ.get('API_KEY')
+    if api_key_required:
+        provided_key = request.headers.get('X-API-Key')
+        if not provided_key or provided_key != api_key_required:
+            return jsonify({'error': 'Unauthorized - Invalid or missing API key'}), 401
+    return None
+
+@app.route('/api/process', methods=['POST'])
+def process_files():
+    """
+    Process files from source to destination with optional mapping
+    
+    Example POST body:
+    {
+        "source": "C:/path/to/source.zip",
+        "dest": "C:/path/to/destination",
+        "dry_run": false,
+        "mapping": "C:/path/to/mapping.json"  // optional
+    }
+    
+    Security: Set API_KEY environment variable to require authentication
+    """
+    auth_error = check_api_key()
+    if auth_error:
+        return auth_error
+    
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({'error': 'No JSON data provided'}), 400
+        
+        source_path = data.get('source')
+        dest_path = data.get('dest')
+        dry_run = data.get('dry_run', True)
+        mapping_path = data.get('mapping')
+        
+        if not source_path or not dest_path:
+            return jsonify({'error': 'source and dest are required'}), 400
+        
+        source_path = Path(source_path)
+        dest_path = Path(dest_path)
+        
+        if not source_path.exists():
+            return jsonify({'error': f'Source path does not exist: {source_path}'}), 400
+        
+        extracted_source = None
+        
+        if source_path.suffix.lower() == '.zip':
+            temp_dir = tempfile.mkdtemp(prefix='etl_extract_')
+            try:
+                with zipfile.ZipFile(source_path, 'r') as zip_ref:
+                    temp_dir_real = os.path.realpath(temp_dir)
+                    
+                    for member_info in zip_ref.infolist():
+                        member = member_info.filename
+                        
+                        if member_info.is_dir():
+                            continue
+                        
+                        member_path = os.path.normpath(os.path.join(temp_dir, member))
+                        member_path_real = os.path.realpath(member_path)
+                        
+                        try:
+                            common_path = os.path.commonpath([member_path_real, temp_dir_real])
+                            if common_path != temp_dir_real:
+                                raise ValueError(f'ZIP contains path outside extraction directory: {member}')
+                        except ValueError:
+                            raise ValueError(f'ZIP contains unsafe path: {member}')
+                        
+                        target_dir = os.path.dirname(member_path)
+                        if not os.path.exists(target_dir):
+                            os.makedirs(target_dir)
+                        
+                        with zip_ref.open(member) as source, open(member_path, 'wb') as target:
+                            shutil.copyfileobj(source, target)
+                        
+                        final_path_real = os.path.realpath(member_path)
+                        try:
+                            final_common = os.path.commonpath([final_path_real, temp_dir_real])
+                            if final_common != temp_dir_real:
+                                os.unlink(member_path)
+                                raise ValueError(f'Extracted file escaped temp directory (symlink attack?): {member}')
+                        except ValueError:
+                            if os.path.exists(member_path):
+                                os.unlink(member_path)
+                            raise ValueError(f'Security check failed for extracted file: {member}')
+                
+                extracted_source = Path(temp_dir)
+                source_to_process = extracted_source
+            except Exception as e:
+                if extracted_source:
+                    shutil.rmtree(extracted_source, ignore_errors=True)
+                return jsonify({'error': f'Failed to extract ZIP: {str(e)}'}), 500
+        else:
+            source_to_process = source_path
+        
+        config_path = Path(__file__).parent.parent / 'router_service' / 'configs' / 'default.yml'
+        temp_config = None
+        
+        if mapping_path:
+            try:
+                mapping_data = parse_mapping_file(mapping_path)
+                
+                with open(config_path, 'r') as f:
+                    base_config = f.read()
+                
+                import yaml
+                config_dict = yaml.safe_load(base_config)
+                
+                if 'module_mappings' in mapping_data:
+                    config_dict.setdefault('modules', {})
+                    config_dict['modules'].update(mapping_data['module_mappings'])
+                elif isinstance(mapping_data, dict):
+                    config_dict.update(mapping_data)
+                
+                temp_config_file = tempfile.NamedTemporaryFile(mode='w', suffix='.yml', delete=False)
+                yaml.dump(config_dict, temp_config_file)
+                temp_config = temp_config_file.name
+                temp_config_file.close()
+                
+                config_to_use = temp_config
+            except Exception as e:
+                if extracted_source:
+                    shutil.rmtree(extracted_source, ignore_errors=True)
+                return jsonify({'error': f'Failed to parse mapping file: {str(e)}'}), 400
+        else:
+            config_to_use = str(config_path)
+        
+        try:
+            from universal_router import UniversalRouter
+            
+            args = argparse.Namespace(
+                src=str(source_to_process),
+                dst=str(dest_path),
+                log='./logs',
+                db_url=DATABASE_URL,
+                user=request.remote_addr or 'postman',
+                dry_run=dry_run,
+                canary=None
+            )
+            
+            router = UniversalRouter(config_to_use, args)
+            router.run()
+            
+            summary = router.logger.get_summary()
+            
+            result = {
+                'status': 'success',
+                'run_id': router.run_id,
+                'session_key': router.session_key,
+                'mode': 'DRY_RUN' if dry_run else 'REAL_RUN',
+                'source': str(source_path),
+                'destination': str(dest_path),
+                'stats': router.stats,
+                'log_file': summary.get('csv_path'),
+                'message': 'Processing completed successfully'
+            }
+            
+            return jsonify(result), 200
+        
+        except Exception as e:
+            return jsonify({
+                'status': 'error',
+                'error': str(e),
+                'message': 'Processing failed'
+            }), 500
+        
+        finally:
+            if extracted_source and extracted_source.exists():
+                shutil.rmtree(extracted_source, ignore_errors=True)
+            
+            if temp_config and os.path.exists(temp_config):
+                os.unlink(temp_config)
+    
+    except Exception as e:
+        return jsonify({'error': f'Unexpected error: {str(e)}'}), 500
+
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    is_replit = os.environ.get('REPL_ID') is not None
+    host = os.environ.get('FLASK_HOST', '0.0.0.0' if is_replit else '127.0.0.1')
+    app.run(host=host, port=5000, debug=True)
