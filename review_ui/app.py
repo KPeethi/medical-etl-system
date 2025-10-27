@@ -16,6 +16,8 @@ from pathlib import Path
 from flask import Flask, render_template, jsonify, request
 from datetime import datetime
 import argparse
+from config_validator import validate_config, check_high_unmapped_rate
+from roster_autodetect import autodetect_columns, get_sample_data
 
 # Add router_service to path
 router_service_path = os.path.join(os.path.dirname(__file__), '..', 'router_service')
@@ -341,6 +343,40 @@ def check_api_key():
             return jsonify({'error': 'Unauthorized - Invalid or missing API key'}), 401
     return None
 
+@app.route('/api/identity/preview', methods=['GET', 'POST'])
+def preview_roster():
+    """
+    Preview roster column detection
+    GET /api/identity/preview?roster=path/to/file.xlsx
+    POST /api/identity/preview with {"roster": {"path": "..."}}
+    """
+    try:
+        if request.method == 'GET':
+            roster_path = request.args.get('roster')
+        else:
+            data = request.get_json()
+            roster_path = data.get('roster', {}).get('path') if isinstance(data.get('roster'), dict) else data.get('roster')
+        
+        if not roster_path:
+            return jsonify({'error': 'roster path is required'}), 400
+        
+        if not os.path.exists(roster_path):
+            return jsonify({'error': f'Roster file not found: {roster_path}'}), 404
+        
+        detected, confidence = autodetect_columns(roster_path)
+        
+        samples = get_sample_data(roster_path, detected, limit=5)
+        
+        return jsonify({
+            'detected': detected,
+            'confidence': confidence,
+            'sample': samples,
+            'message': f'Auto-detected columns with {len(detected)}/3 fields found'
+        })
+    
+    except Exception as e:
+        return jsonify({'error': f'Failed to preview roster: {str(e)}'}), 500
+
 @app.route('/api/process', methods=['POST'])
 def process_files():
     """
@@ -365,6 +401,15 @@ def process_files():
         
         if not data:
             return jsonify({'error': 'No JSON data provided'}), 400
+        
+        mapping_data = data.get('mapping', {})
+        if isinstance(mapping_data, dict):
+            is_valid, error_msg = validate_config(mapping_data)
+            if not is_valid:
+                return jsonify({
+                    'error': error_msg,
+                    'status': 'validation_failed'
+                }), 400
         
         source_path = data.get('source')
         dest_path = data.get('dest')
@@ -481,6 +526,8 @@ def process_files():
             
             summary = router.logger.get_summary()
             
+            is_high_unmapped, unmapped_warning = check_high_unmapped_rate(router.stats, threshold=0.6)
+            
             result = {
                 'status': 'success',
                 'run_id': router.run_id,
@@ -492,6 +539,14 @@ def process_files():
                 'log_file': summary.get('csv_path'),
                 'message': 'Processing completed successfully'
             }
+            
+            if is_high_unmapped and dry_run:
+                result['warning'] = unmapped_warning
+                result['recommendation'] = 'Review roster configuration. Use GET /api/unmapped to see examples.'
+                return jsonify(result), 409
+            
+            if is_high_unmapped:
+                result['warning'] = unmapped_warning
             
             return jsonify(result), 200
         

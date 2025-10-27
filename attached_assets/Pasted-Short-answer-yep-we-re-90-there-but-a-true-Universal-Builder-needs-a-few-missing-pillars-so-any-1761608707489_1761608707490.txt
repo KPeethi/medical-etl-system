@@ -1,0 +1,266 @@
+Short answer: yep—we’re 90% there, but a true “Universal Builder” needs a few missing pillars so any new practice can be onboarded with near-zero code. Here’s the audit + the exact pieces to add so this scales without drama.
+
+# What’s still needed for a **Universal Builder**
+
+1. **Golden Config Contract (Schema + Validation)**
+
+* Lock a single JSON/YAML schema that every practice pack must satisfy.
+* Include: `identity.roster.path|sheet|columns`, `modules.keywords`, `io.include_exts`, `policy.dedupe`, `routing.root_style`, `security.readonly`, `modes.dry_run`.
+* Enforce with JSON Schema at request ingress; reject ambiguous config early.
+
+2. **Roster Autodetect + Mapper**
+
+* Auto-find the roster even if headers are weird: `lastname|last_name|Last Name|LName`, `firstname|first_name`, `dob|birthdate|date_of_birth`.
+* Fallback heuristics: scan first 50 rows, score candidates, emit a mapping preview.
+* Persist the resolved column map in `REF_MappingConfiguration` (versioned).
+
+3. **Practice Pack Template (One Zip = Ready to Run)**
+
+```
+practice_pack/
+  default.yml              # overrides
+  roster.xlsx              # patient list
+  keywords.yml             # per-practice module hints
+  samples/                 # 10 sample files for smoke test
+  README.md                # one-pager “how to run”
+```
+
+* Drop this folder anywhere → POST /api/process with `practice_pack` path → done.
+
+4. **Pluggable Module Classifier**
+
+* Today: keyword rules. Make it plugin-style:
+
+  * `rules/keywords.py` (default)
+  * `rules/mltfidf.py` (optional if we grow)
+  * `rules/regex.py` (per-practice enrichment)
+* First match wins; attach a confidence score; low-confidence → review queue.
+
+5. **Deterministic Dedup Policy Matrix**
+
+* Make the rules explicit and testable:
+
+| Check Order | Rule                            | Action                                                                   |
+| ----------- | ------------------------------- | ------------------------------------------------------------------------ |
+| 1           | same SHA256 anywhere            | SKIP as `DUP_HASH`                                                       |
+| 2           | same (size + module + filename) | SKIP as `DUP_NAME_SIZE_MODULE`                                           |
+| 3           | same (size + module) diff name  | COPY to `_duplicate/<MODULE>/nameprefixed_...` as `COPY_DUP_SIZE_MODULE` |
+| 4           | else                            | COPY as `COPY_NEW`                                                       |
+
+6. **Idempotent Dry-Run Contract**
+
+* Dry-run must compute the same plan as real-run.
+* Return `plan_id`, with counts by action + first 200 sample rows.
+* Real-run takes `plan_id` (optional) to prove parity.
+
+7. **Adapters Layer (I/O everywhere, still read-only source)**
+
+* `io/fs_local.py` (done), `io/smb.py` (UNC paths), `io/s3.py`, `io/zip.py` (safe extract).
+* All behind `FileEnumerator` + `SafeCopier` interfaces; flips via config.
+
+8. **Observability SLOs**
+
+* `/metrics` (Prometheus): files/sec, dedupe hit-rate, error rate, queue depth.
+* Disk guard (fail fast if `< X GB` free at destination).
+* Run heartbeat to DB every N seconds.
+
+9. **Auth & Hardening Defaults**
+
+* API key required by default (env: `ROUTER_API_KEY`).
+* Bind `127.0.0.1` unless `ALLOW_REMOTE=true`.
+* Path traversal & symlink checks already noted—make them unit-tested gates.
+
+10. **One-Click Smoke Test**
+
+* `POST /api/process?mode=smoke&practice_pack=...` runs on the `samples/` folder, asserts:
+
+  * ≥1 mapped, ≥1 unmapped, dedupe path hit at least once, CSV & DB rows written.
+
+---
+
+# Minimal viable **config schema** (YAML)
+
+```yaml
+version: 1
+io:
+  src: "C:/input"
+  dst: "C:/output"
+  include_exts: [".pdf", ".tif", ".tiff", ".jpg", ".jpeg", ".png", ".doc", ".docx", ".rtf", ".txt", ".xlsx", ".csv", ".xml"]
+routing:
+  root_style: "container"   # or "flat"
+  patient_folder_format: "{last}, {first} {dob:%m-%d-%Y}"
+identity:
+  roster:
+    path: "C:/patients.xlsx"
+    sheet: null              # autodetect if null
+    columns:
+      last: ["last_name","lastname","surname"]
+      first: ["first_name","firstname","given"]
+      dob: ["dob","date_of_birth","birthdate"]
+    fuzzy:
+      enabled: true
+      threshold: 88
+modules:
+  rules:
+    - name: Labs
+      any_of: ["lab","labs","cbc","cmp","pathology","quest","labcorp"]
+    - name: Imaging
+      any_of: ["xray","mri","ct","radiology","ultrasound","echo"]
+    - name: Notes
+      any_of: ["note","progress","encounter","soap","assessment"]
+    - name: Reports
+      any_of: ["summary","discharge","operative","report"]
+    - name: General
+      any_of: []
+policy:
+  dedupe: ["hash","name_size_module","size_module"]
+  on_low_confidence_module: "route_to/_review"
+security:
+  source_readonly: true
+  safe_zip_extract: true
+modes:
+  dry_run: true
+logging:
+  csv_dir: "C:/logs"
+  redact_phi: true
+database:
+  enabled: true
+  conn_str: "postgresql://router:***@localhost:5432/medrouter"
+```
+
+**Validation**: reject if `identity.roster.path` is missing (this was your root cause).
+
+---
+
+# Postman body (works today)
+
+```json
+{
+  "io": {
+    "src": "C:/input",
+    "dst": "C:/output",
+    "include_exts": [".pdf",".tif",".tiff",".jpg",".jpeg",".png",".doc",".docx",".rtf",".txt",".xlsx",".csv",".xml"]
+  },
+  "identity": {
+    "roster": {
+      "path": "C:/patients.xlsx",
+      "sheet": null,
+      "columns": {"last": [], "first": [], "dob": []}
+    }
+  },
+  "modules": {
+    "rules": [
+      {"name":"Labs","any_of":["lab","cbc","pathology"]},
+      {"name":"Imaging","any_of":["xray","mri","ct","radiology"]},
+      {"name":"Notes","any_of":["note","encounter","progress"]},
+      {"name":"Reports","any_of":["summary","discharge"]},
+      {"name":"General","any_of":[]}
+    ]
+  },
+  "policy": { "dedupe": ["hash","name_size_module","size_module"] },
+  "modes": { "dry_run": true },
+  "logging": { "csv_dir": "C:/logs", "redact_phi": true }
+}
+```
+
+---
+
+# DB tables (lean, production-grade)
+
+```sql
+-- FACT: one row per file event
+CREATE TABLE IF NOT EXISTS fact_fileprocessing(
+  id BIGSERIAL PRIMARY KEY,
+  run_id UUID NOT NULL,
+  event_ts timestamptz NOT NULL DEFAULT now(),
+  src_path text NOT NULL,
+  dst_path text,
+  action text NOT NULL,               -- COPY_NEW, DUP_HASH, etc.
+  reason text,
+  module text,
+  patient_key text,                   -- "Smith|John|1980-05-15"
+  sha256 char(64),
+  file_size_bytes bigint,
+  host text, user_name text, script_version text
+);
+
+-- DIM: patient master
+CREATE TABLE IF NOT EXISTS dim_patient(
+  patient_key text PRIMARY KEY,       -- canonical
+  last text, first text, dob date,
+  source_roster text, roster_hash char(64)
+);
+
+-- AUDIT: PHI-redacted event mirror
+CREATE TABLE IF NOT EXISTS audit_hipaalog(
+  id BIGSERIAL PRIMARY KEY,
+  run_id UUID, event_ts timestamptz,
+  message text                      -- already redacted
+);
+
+-- REF: mapping config versions
+CREATE TABLE IF NOT EXISTS ref_mappingconfiguration(
+  config_id UUID PRIMARY KEY,
+  created_ts timestamptz DEFAULT now(),
+  raw_json jsonb,
+  roster_path text,
+  detected_columns jsonb
+);
+```
+
+---
+
+# Dry-Run vs Real-Run (non-negotiables)
+
+* **Dry-run** returns:
+
+  * `plan_id`, totals, and first N rows (PHI-redacted).
+  * No filesystem writes.
+* **Real-run**:
+
+  * Accepts same body (or `plan_id`).
+  * Writes `fact_fileprocessing`, mirrors to CSV, performs copies.
+* Both paths must produce identical counts for the same input snapshot—this is your audit shield.
+
+---
+
+# Universal Builder: on-boarding flow (zero code)
+
+1. Zip up a **Practice Pack** (the template above).
+2. `POST /api/process` with:
+
+   * `practice_pack` = path to that folder
+   * (optional) override any field inline (your roster path, etc.)
+3. First call in `mode=smoke` → get green checks.
+4. Second call `dry_run=true` on real input.
+5. Third call `dry_run=false` → production.
+
+---
+
+# Action items I recommend (in order)
+
+1. Add JSON Schema validation at API ingress and fail when `roster.path` is null.
+2. Implement **Roster Autodetect** (header mapping + preview) and persist to `REF_MappingConfiguration`.
+3. Extract the **Classifier** to a plugin interface; keep keywords as default.
+4. Encode the **Dedup Matrix** and log the rule that fired (you already log action; include `dedupe_rule`).
+5. Ship a **Practice Pack Template** generator: `python tools/make_practice_pack.py --name "Alexander OBGYN"`.
+6. Add `/api/process?mode=smoke` using `samples/`.
+7. Turn on API key by default; bind localhost only unless `ALLOW_REMOTE`.
+
+---
+
+# Quick fix for your current “12 unmapped, 0 copied”
+
+* Your own diagnosis is correct: **`identity.roster.path` is null**.
+* Either set it in `default.yml` or pass it in Postman (snippet above).
+* Optional guardrail: if `unmapped / total > 0.6`, auto-warn and refuse real-run unless `force=true`.
+
+---
+
+If you want, I can draft:
+
+* the JSON Schema,
+* the autodetect routine (with fuzzy header mapping),
+* and the `make_practice_pack.py` scaffold generator
+
+—all plug-and-play with your current Flask + router setup.

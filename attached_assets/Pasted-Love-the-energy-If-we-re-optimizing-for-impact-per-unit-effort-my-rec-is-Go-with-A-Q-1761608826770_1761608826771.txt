@@ -1,0 +1,127 @@
+Love the energy. If we’re optimizing for **impact-per-unit-effort**, my rec is:
+
+## Go with **A) Quick wins now**, then roll into **B** as a follow-on
+
+Reasoning (no fluff, just signal):
+
+* **A fixes your current pain** (silent failures + unmapped spiral) and hardens the “front door.”
+* It’s low-risk, backwards-compatible, and sets the scaffolding that **B** (Universal Builder) plugs right into.
+* **C** is tactical only; you’ll fight the same fires again next week.
+
+Here’s exactly what I’d ship under **A** (right now), plus the acceptance tests:
+
+---
+
+# A) Quick Wins (production guardrails)
+
+### 1) Config validation at ingress (JSON Schema + hard fail)
+
+* **Behavior:** If `identity.roster.path` is missing/empty/unreadable → HTTP 400 with human message.
+* **Minimal schema (drop-in):**
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "identity": {
+      "type": "object",
+      "properties": {
+        "roster": {
+          "type": "object",
+          "properties": {
+            "path": {"type": "string", "minLength": 1}
+          },
+          "required": ["path"]
+        }
+      },
+      "required": ["roster"]
+    }
+  },
+  "required": ["identity"]
+}
+```
+
+* **Error string (clear, actionable):**
+  `ERROR: identity.roster.path is required and must point to a readable file. Tip: include it in the request body or supply a Practice Pack.`
+
+### 2) Better diagnostics (no more “quiet 12 unmapped”)
+
+* **On run start:** log a “preflight summary” (src count, ext whitelist, roster rows, detected columns).
+* **On >60% unmapped in dry-run:** return **HTTP 409** with:
+  `High unmapped rate (83%). Likely bad roster mapping. Run /api/unmapped to preview examples.`
+
+### 3) Roster autodetect (header mapper with confidence)
+
+* **Heuristics:** map candidate columns by regex + frequency + value shape.
+
+  * last: `(?i)\b(last|surname|l\s*name)\b`
+  * first: `(?i)\b(first|given|f\s*name)\b`
+  * dob: ISO / US dates; reject 01-01-1900, out-of-range years.
+* **API:** `GET /api/identity/preview?roster=...` → returns:
+
+```json
+{
+  "detected": {"last":"Last Name","first":"First Name","dob":"DOB"},
+  "confidence": {"last":0.97,"first":0.96,"dob":0.92},
+  "sample":[{"last":"Smith","first":"John","dob":"1980-05-15"}]
+}
+```
+
+* **If user provides columns:** we trust them; autodetect is fallback only.
+
+### 4) Practice Pack template generator (scaffold, optional)
+
+* CLI: `python tools/make_practice_pack.py --name "Alexander OBGYN" --out C:\packs\Alexander`
+* Output:
+
+```
+Alexander/
+  patients.xlsx
+  config.yml
+  samples/
+  README.txt
+```
+
+* **Postman body** can accept `practice_pack` OR explicit fields; explicit wins.
+
+---
+
+## Definition of Done (for A)
+
+* **Dry-run** on a known test set returns:
+
+  * Preflight block (counts, roster rows, column map w/ confidence).
+  * `plan_id`, plus sample of each action bucket.
+* **Real-run** with same body ≈ identical counts.
+* Missing/invalid roster → **400** with the error string above.
+* Unmapped ratio high → **409** with a nudge to preview.
+* Unit tests for schema validation + header autodetect edge cases.
+
+---
+
+# Then B) Universal Builder (incremental after A)
+
+Because A creates the contract, **B** becomes a clean extension:
+
+* Practice Pack ingestion → one POST and done.
+* Pluggable classifier → keep keywords now, swap ML later.
+* Dedup policy matrix → surfaced in logs as `dedupe_rule`.
+* Smoke test mode → `mode=smoke` on `samples/`.
+* Metrics + disk guard → `/metrics`, fail fast if low space.
+
+---
+
+## TL;DR recommendation
+
+* **Choose A now.** It stops the bleeding, adds seatbelts, and future-proofs the API without boiling the ocean.
+* After A lands and your current run is green, we sequence **B** (Universal Builder).
+* We can always patch **C** (your current unmapped) in parallel, but A already cures that root cause.
+
+If you’re aligned, I’ll drop:
+
+1. the JSON Schema + validation middleware,
+2. the autodetect endpoint + util,
+3. the preflight & high-unmapped guard,
+4. (optional) practice-pack generator stub.
+
+Say “ship A” and I’ll hand you the exact code blocks and where to paste them in your Flask app.
