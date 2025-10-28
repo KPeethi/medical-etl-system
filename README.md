@@ -52,7 +52,7 @@ medical-etl-mvp/
 ### Prerequisites
 
 - Python 3.11+
-- PostgreSQL database (automatically configured in Replit)
+- PostgreSQL database (optional - for full ETL system)
 
 ### Quick Start
 

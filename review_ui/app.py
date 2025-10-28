@@ -839,6 +839,6 @@ def process_files():
         return jsonify({'error': f'Unexpected error: {str(e)}'}), 500
 
 if __name__ == '__main__':
-    is_replit = os.environ.get('REPL_ID') is not None
-    host = os.environ.get('FLASK_HOST', '0.0.0.0' if is_replit else '127.0.0.1')
-    app.run(host=host, port=5000, debug=True)
+    host = os.environ.get('FLASK_HOST', '127.0.0.1')
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host=host, port=port, debug=True)
