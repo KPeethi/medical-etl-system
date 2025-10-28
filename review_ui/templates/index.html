@@ -283,7 +283,7 @@
                 .then(r => r.json())
                 .then(data => {
                     const tbody = document.getElementById('unmapped-table-body');
-                    if (data.length === 0) {
+                    if (!data || data.length === 0) {
                         tbody.innerHTML = '<tr><td colspan="5" class="text-center">No unmapped files</td></tr>';
                         return;
                     }
@@ -296,6 +296,11 @@
                             <td>${new Date(file.timestamp).toLocaleString()}</td>
                         </tr>
                     `).join('');
+                })
+                .catch(err => {
+                    console.error('Error loading unmapped files:', err);
+                    const tbody = document.getElementById('unmapped-table-body');
+                    tbody.innerHTML = '<tr><td colspan="5" class="text-center text-danger">Error loading unmapped files</td></tr>';
                 });
         }
 
