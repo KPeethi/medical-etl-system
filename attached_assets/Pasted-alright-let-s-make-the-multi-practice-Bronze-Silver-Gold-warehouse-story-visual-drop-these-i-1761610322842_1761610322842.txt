@@ -1,0 +1,151 @@
+alright, let’s make the “multi-practice → Bronze/Silver/Gold → warehouse” story visual. drop these into a `.md` file and open the Mermaid preview in VS Code.
+
+---
+
+### 1) End-to-end flow (per practice + rolled up)
+
+```mermaid
+flowchart LR
+  %% PRACTICES
+  subgraph Practices (Many practices / locations)
+    A1["Triangle ENT\n(Export)"]
+    A2["Valley Neurology\n(Export)"]
+    A3["Alexander OBGYN\n(Export)"]
+  end
+
+  %% BRONZE
+  subgraph Bronze["Bronze (Raw, Read-Only)"]
+    B1["\\...\\<STATE>\\<PRACTICE>\\Export"]
+  end
+
+  %% ROUTER
+  subgraph Router["Universal Router API/Service"]
+    R1["Config Validation\n(JSON Schema)"]
+    R2["Roster Autodetect\n(last/first/dob + confidence)"]
+    R3["Identity Match\n(filename/roster/fuzzy)"]
+    R4["Module Classifier\n(Labs/Imaging/Notes/Reports)"]
+    R5["Dedup Rules\n(hash, name+size+module)"]
+    R6["Plan → Execute\n(dry-run = real-run)"]
+  end
+
+  %% SILVER/GOLD
+  subgraph Silver["Silver (Clean/Normalized)"]
+    S1["Flattened/standardized\n(optional per practice)"]
+  end
+  subgraph Gold["Gold (Patient Folders)"]
+    G1["Lastname, Firstname MM-DD-YYYY/\n ├─ Labs/\n ├─ Imaging/\n ├─ Notes/\n └─ Reports/"]
+  end
+
+  %% LOGS + WAREHOUSE + DASH
+  subgraph Logging["Logs"]
+    L1["CSV (PHI-redacted)"]
+    L2["Audit stream"]
+  end
+  subgraph Warehouse["SQL DW"]
+    W1["fact_fileprocessing"]
+    W2["dim_patient"]
+    W3["dim_practice"]
+    W4["audit_hipaalog"]
+  end
+
+  subgraph Dash["Ops Dashboard / Postman"]
+    D1["/api/stats\n/api/unmapped\n/api/recent-runs"]
+  end
+
+  %% WIRES
+  A1 -->|copy (read-only)| B1
+  A2 -->|copy (read-only)| B1
+  A3 -->|copy (read-only)| B1
+
+  B1 --> R1
+  R1 --> R2 --> R3 --> R4 --> R5 --> R6
+
+  R6 -->|optional| S1 --> G1
+  R6 -->|direct| G1
+
+  R6 --> L1
+  R6 --> W1
+  R6 --> W4
+  R2 --> W2
+  R6 --> W3
+
+  D1 <-->|monitor/control| R6
+```
+
+---
+
+### 2) Folder convention (one practice)
+
+```mermaid
+flowchart TB
+  P["\\mrm-fileserver\\practice records\\<STATE>\\<PRACTICE>"]
+  P --> E["Export  (Bronze / raw, read-only)"]
+  P --> C["Config  (roster.xlsx, config.yml, mapping.json)"]
+  P --> L["Log     (CSV, plan summaries)"]
+  P --> G["Patients (Gold / organized)"]
+
+  G --> G1["Lastname, Firstname MM-DD-YYYY/"]
+  G1 --> GL["Labs/"]
+  G1 --> GI["Imaging/"]
+  G1 --> GN["Notes/"]
+  G1 --> GR["Reports/"]
+```
+
+---
+
+### 3) Warehouse entities (what you slice in analytics)
+
+```mermaid
+classDiagram
+  class dim_practice {
+    practice_id : text <<PK>>
+    name : text
+    state : text
+    root_export_path : text
+  }
+
+  class dim_patient {
+    patient_key : text <<PK>>  // "Smith|John|1980-05-15"
+    last : text
+    first : text
+    dob : date
+  }
+
+  class fact_fileprocessing {
+    id : bigserial <<PK>>
+    run_id : uuid
+    event_ts : timestamptz
+    practice_id : text <<FK dim_practice>>
+    patient_key : text <<FK dim_patient>>
+    src_path : text
+    dst_path : text
+    module : text
+    action : text  // COPY_NEW, DUP_HASH, UNMAPPED, etc.
+    dedupe_rule : text
+    sha256 : char(64)
+    file_size_bytes : bigint
+  }
+
+  class audit_hipaalog {
+    id : bigserial <<PK>>
+    run_id : uuid
+    event_ts : timestamptz
+    message : text  // redacted
+  }
+
+  dim_practice <.. fact_fileprocessing : has many
+  dim_patient  <.. fact_fileprocessing : has many
+```
+
+---
+
+### Usage notes (keep it crisp)
+
+* **Bronze is sacred**: everything there is copy-only. Router never mutates source.
+* **Plan → Execute**: you always dry-run first; if unmapped% > 60, it blocks (409).
+* **Roster Autodetect**: preview with `/api/identity/preview` before real runs.
+* **Per-practice config** comes from the Practice Pack (paths, roster, keywords).
+* **Logs feed warehouse**: CSV mirrors → `fact_fileprocessing`, `dim_*`, `audit_*`.
+* **Dash** (or Postman) pulls `/api/stats`, `/api/unmapped`, `/api/recent-runs`.
+
+want me to drop these into a printable one-pager (or a Canva slide) with your actual UNC paths and two real practice examples?
