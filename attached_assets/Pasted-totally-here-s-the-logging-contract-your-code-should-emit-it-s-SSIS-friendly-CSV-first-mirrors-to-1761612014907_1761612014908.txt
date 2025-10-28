@@ -1,0 +1,201 @@
+totally—here’s the logging contract your code should emit. it’s SSIS-friendly (CSV first, mirrors to Postgres). you can copy/paste this header into tests to validate.
+
+# CSV columns (in order)
+
+```
+run_id,
+run_started_utc,
+event_time_utc,
+event_date,
+event_time,
+invoked_by_user,
+invoked_from_host,
+host_platform,
+host_release,
+python_version,
+cwd,
+cmdline,
+mode,
+script_version,
+src_root,
+dst_root,
+src_path,
+relative_path,
+dst_path,
+nested_level,
+action,
+reason,
+dedupe_rule,
+patient_key,
+last,
+first,
+dob,
+module,
+file_ext,
+file_size_bytes,
+sha256,
+include_exts,
+exclude_exts,
+max_bytes
+```
+
+# One sample CSV row
+
+```
+8f1f3a55-8b9a-4f7e-9f6c-2b5a6c1a2e9a,
+2025-10-27T22:04:18Z,
+2025-10-27T22:04:23Z,
+2025-10-27,
+22:04:23,
+pkulkarni,
+Mrm-ETL01,
+Windows,
+10.0.22631,
+3.11.9,
+\\mrm-fileserver\routers\medical,
+python review_ui\app.py --config C:\cfg\alex.yml,
+dry_run,
+2.4.2,
+\\mrm-fileserver\practice records\TX\Alexander_OBGYN\Export,
+\\mrm-fileserver\practice records\TX\Alexander_OBGYN\Patients,
+\\mrm-fileserver\practice records\TX\Alexander_OBGYN\Export\Labs\Smith_John_1980-05-15_lab.pdf,
+Labs\Smith_John_1980-05-15_lab.pdf,
+\\mrm-fileserver\practice records\TX\Alexander_OBGYN\Patients\Smith, John 05-15-1980\Labs\Smith_John_1980-05-15_lab.pdf,
+2,
+COPY_NEW,
+,
+new,
+Smith|John|1980-05-15,
+Smith,
+John,
+1980-05-15,
+Labs,
+.pdf,
+184322,
+c4e1d5d6b3d7f6a2b8a9e1c1d2f3e4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1,
+[".pdf",".tif",".tiff",".jpg",".jpeg",".png",".doc",".docx",".rtf",".txt",".xlsx",".csv",".xml"],
+[],
+104857600
+```
+
+# Column cheat-sheet (what each means)
+
+* **run_id**: UUID for the whole run/plan (ties all events together).
+* **run_started_utc / event_time_utc / event_date / event_time**: timestamps; split fields simplify SSIS.
+* **invoked_by_user / invoked_from_host**: `getpass.getuser()` + hostname.
+* **host_platform / host_release / python_version**: environment fingerprint.
+* **cwd / cmdline**: where/how the process was launched.
+* **mode**: `dry_run` or `real`.
+* **script_version**: your router version string.
+* **src_root / dst_root**: roots passed in config.
+* **src_path / relative_path / dst_path**: original location, path relative to `src_root`, and final Gold path (empty if skipped).
+* **nested_level**: depth found during enumeration (0 at root).
+* **action**: decision taken — see “Action values” below.
+* **reason**: human explanation for odd cases (e.g., `unmapped_no_roster_match`, `bad_dob`); blank if normal.
+* **dedupe_rule**: which rule fired (`hash`, `name_size_module`, `size_module`, `new`).
+* **patient_key / last / first / dob**: canonical identifiers (dob ISO `YYYY-MM-DD`).
+* **module**: `Labs | Imaging | Notes | Reports | General`.
+* **file_ext**: lower-cased extension.
+* **file_size_bytes**: integer size at source.
+* **sha256**: content hash (always present if computed; blank if gated by `max_bytes`).
+* **include_exts / exclude_exts**: echoes config (serialized JSON arrays).
+* **max_bytes**: optional limit used during hashing/copy.
+
+# Action values you’ll see
+
+* **COPY_NEW** — first time this content/name; copied to Gold.
+* **DUP_HASH** — exact duplicate by SHA256; skipped.
+* **DUP_NAME_SIZE_MODULE** — same name+size in same module; skipped.
+* **COPY_DUP_SIZE_MODULE** — same size+module but different name; copied to `_duplicate/<MODULE>/...`.
+* **UNMAPPED** — no roster match (see **reason** for why).
+* **ERROR** — unrecoverable issue (I/O, parse, etc.); **reason** describes it.
+
+# Postgres mapping (mirrors the CSV)
+
+Minimal table (example):
+
+```sql
+CREATE TABLE fact_fileprocessing(
+  id BIGSERIAL PRIMARY KEY,
+  run_id UUID NOT NULL,
+  run_started_utc timestamptz,
+  event_time_utc timestamptz NOT NULL,
+  event_date date,
+  event_time time,
+  invoked_by_user text,
+  invoked_from_host text,
+  host_platform text,
+  host_release text,
+  python_version text,
+  cwd text,
+  cmdline text,
+  mode text,
+  script_version text,
+  src_root text,
+  dst_root text,
+  src_path text NOT NULL,
+  relative_path text,
+  dst_path text,
+  nested_level int,
+  action text NOT NULL,
+  reason text,
+  dedupe_rule text,
+  patient_key text,
+  last text,
+  first text,
+  dob date,
+  module text,
+  file_ext text,
+  file_size_bytes bigint,
+  sha256 char(64),
+  include_exts jsonb,
+  exclude_exts jsonb,
+  max_bytes bigint
+);
+```
+
+# Tiny code sketch (how to write the CSV row)
+
+```python
+def emit_log_row(ctx, item, action, dedupe_rule, reason=""):
+    row = {
+      "run_id": ctx.run_id,
+      "run_started_utc": ctx.run_started_utc.isoformat().replace("+00:00","Z"),
+      "event_time_utc": dt.datetime.utcnow().isoformat().replace("+00:00","Z"),
+      "event_date": dt.date.today().isoformat(),
+      "event_time": dt.datetime.utcnow().strftime("%H:%M:%S"),
+      "invoked_by_user": ctx.user,
+      "invoked_from_host": ctx.host,
+      "host_platform": platform.system(),
+      "host_release": platform.release(),
+      "python_version": platform.python_version(),
+      "cwd": str(Path.cwd()),
+      "cmdline": " ".join(sys.argv),
+      "mode": ctx.mode,
+      "script_version": ctx.version,
+      "src_root": ctx.src_root,
+      "dst_root": ctx.dst_root,
+      "src_path": str(item.src),
+      "relative_path": str(item.src).replace(ctx.src_root + os.sep, ""),
+      "dst_path": str(item.dst) if item.dst else "",
+      "nested_level": item.depth,
+      "action": action,
+      "reason": reason,
+      "dedupe_rule": dedupe_rule,
+      "patient_key": item.patient_key or "",
+      "last": item.last or "",
+      "first": item.first or "",
+      "dob": item.dob or "",
+      "module": item.module or "",
+      "file_ext": item.src.suffix.lower(),
+      "file_size_bytes": item.size,
+      "sha256": item.sha256 or "",
+      "include_exts": json.dumps(ctx.include_exts),
+      "exclude_exts": json.dumps(ctx.exclude_exts),
+      "max_bytes": ctx.max_bytes or 0
+    }
+    csv_writer.writerow(row)
+    db_buffer.append(row)
+```
+
+If you want me to tailor the schema (add/remove columns) to match your SSIS table exactly, tell me which columns you want changed and I’ll refactor the header + SQL accordingly.

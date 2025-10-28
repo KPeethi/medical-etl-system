@@ -37,9 +37,28 @@ def index():
     """Main dashboard"""
     return render_template('index.html')
 
+def parse_state_practice_from_path(path):
+    """Parse state and practice from path like \\mrm-fileserver\\practice records\\TX\\Alexander_OBGYN"""
+    if not path:
+        return None, None
+    
+    path_str = str(path).replace('\\', '/').replace('//', '/')
+    
+    parts = path_str.split('/')
+    
+    for i, part in enumerate(parts):
+        if 'practice' in part.lower() and 'records' in part.lower():
+            if i + 1 < len(parts):
+                state = parts[i + 1]
+                if i + 2 < len(parts):
+                    practice = parts[i + 2]
+                    return state, practice
+    
+    return None, None
+
 @app.route('/api/stats')
 def get_stats():
-    """Get overall statistics"""
+    """Get overall statistics including states and practices"""
     try:
         conn = get_db()
         cur = conn.cursor()
@@ -57,7 +76,26 @@ def get_stats():
         """)
         
         row = cur.fetchone()
+        
+        cur.execute("""
+            SELECT DISTINCT SourcePath FROM FACT_FileProcessing 
+            WHERE SourcePath IS NOT NULL
+        """)
+        
+        paths = cur.fetchall()
+        states_set = set()
+        practices_set = set()
+        
+        for (path,) in paths:
+            state, practice = parse_state_practice_from_path(path)
+            if state:
+                states_set.add(state)
+            if practice:
+                practices_set.add(practice)
+        
         stats = {
+            'states': len(states_set),
+            'practices': len(practices_set),
             'total_runs': row[0] or 0,
             'total_files': row[1] or 0,
             'copied': row[2] or 0,
@@ -71,6 +109,57 @@ def get_stats():
         conn.close()
         
         return jsonify(stats)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/practice-stats')
+def get_practice_stats():
+    """Get statistics broken down by state and practice"""
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT SourcePath, Action 
+            FROM FACT_FileProcessing 
+            WHERE SourcePath IS NOT NULL
+        """)
+        
+        rows = cur.fetchall()
+        
+        practice_data = {}
+        
+        for source_path, action in rows:
+            state, practice = parse_state_practice_from_path(source_path)
+            if not state or not practice:
+                continue
+            
+            key = f"{state}|{practice}"
+            if key not in practice_data:
+                practice_data[key] = {
+                    'state': state,
+                    'practice': practice,
+                    'scanned': 0,
+                    'copied': 0,
+                    'unmapped': 0,
+                    'errors': 0
+                }
+            
+            practice_data[key]['scanned'] += 1
+            
+            if action == 'COPY':
+                practice_data[key]['copied'] += 1
+            elif action == 'MOVE_TO_UNMAPPED':
+                practice_data[key]['unmapped'] += 1
+            elif action == 'ERROR':
+                practice_data[key]['errors'] += 1
+        
+        result = sorted(practice_data.values(), key=lambda x: (x['state'], x['practice']))
+        
+        cur.close()
+        conn.close()
+        
+        return jsonify(result)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
