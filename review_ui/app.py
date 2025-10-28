@@ -284,8 +284,6 @@ def get_practice_files(state, practice):
         page_size = int(request.args.get('page_size', 50))
         action_filter = request.args.get('action')
         
-        offset = (page - 1) * page_size
-        
         query = """
             SELECT 
                 FileProcessingKey,
@@ -306,20 +304,19 @@ def get_practice_files(state, practice):
             query += " AND Action = %s"
             params.append(action_filter)
         
-        query += " ORDER BY EventTimeUTC DESC LIMIT %s OFFSET %s"
-        params.extend([page_size, offset])
+        query += " ORDER BY EventTimeUTC DESC"
         
         cur.execute(query, params)
         rows = cur.fetchall()
         
-        files = []
+        all_files = []
         for row in rows:
             parsed_state, parsed_practice = parse_state_practice_from_path(row[1])
             
             if parsed_state != state or parsed_practice != practice:
                 continue
             
-            files.append({
+            all_files.append({
                 'id': row[0],
                 'source_path': row[1],
                 'destination_path': row[2],
@@ -330,29 +327,20 @@ def get_practice_files(state, practice):
                 'file_size': row[7]
             })
         
-        count_query = """
-            SELECT COUNT(*) 
-            FROM FACT_FileProcessing 
-            WHERE SourcePath IS NOT NULL
-        """
-        
-        if action_filter:
-            count_query += " AND Action = %s"
-            cur.execute(count_query, [action_filter])
-        else:
-            cur.execute(count_query)
-        
-        total_in_db = cur.fetchone()[0]
+        total_files = len(all_files)
+        start_idx = (page - 1) * page_size
+        end_idx = start_idx + page_size
+        paginated_files = all_files[start_idx:end_idx]
         
         cur.close()
         conn.close()
         
         return jsonify({
-            'files': files[:page_size],
-            'total': len(files),
+            'files': paginated_files,
+            'total': total_files,
             'page': page,
             'page_size': page_size,
-            'has_more': len(files) > page_size
+            'has_more': end_idx < total_files
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
