@@ -163,6 +163,200 @@ def get_practice_stats():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/states')
+def get_states():
+    """Get list of all states with file statistics"""
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT SourcePath, Action 
+            FROM FACT_FileProcessing 
+            WHERE SourcePath IS NOT NULL
+        """)
+        
+        rows = cur.fetchall()
+        
+        state_data = {}
+        
+        for source_path, action in rows:
+            state, practice = parse_state_practice_from_path(source_path)
+            if not state:
+                continue
+            
+            if state not in state_data:
+                state_data[state] = {
+                    'state': state,
+                    'total_files': 0,
+                    'copied': 0,
+                    'unmapped': 0,
+                    'errors': 0,
+                    'practices': set()
+                }
+            
+            state_data[state]['total_files'] += 1
+            state_data[state]['practices'].add(practice)
+            
+            if action == 'COPY':
+                state_data[state]['copied'] += 1
+            elif action == 'MOVE_TO_UNMAPPED':
+                state_data[state]['unmapped'] += 1
+            elif action == 'ERROR':
+                state_data[state]['errors'] += 1
+        
+        result = []
+        for state_code, data in sorted(state_data.items()):
+            result.append({
+                'state': data['state'],
+                'total_files': data['total_files'],
+                'copied': data['copied'],
+                'unmapped': data['unmapped'],
+                'errors': data['errors'],
+                'practice_count': len(data['practices'])
+            })
+        
+        cur.close()
+        conn.close()
+        
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/states/<state>/practices')
+def get_state_practices(state):
+    """Get practices in a specific state"""
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT SourcePath, Action 
+            FROM FACT_FileProcessing 
+            WHERE SourcePath IS NOT NULL
+        """)
+        
+        rows = cur.fetchall()
+        
+        practice_data = {}
+        
+        for source_path, action in rows:
+            parsed_state, practice = parse_state_practice_from_path(source_path)
+            if parsed_state != state or not practice:
+                continue
+            
+            if practice not in practice_data:
+                practice_data[practice] = {
+                    'practice': practice,
+                    'state': state,
+                    'scanned': 0,
+                    'copied': 0,
+                    'unmapped': 0,
+                    'errors': 0
+                }
+            
+            practice_data[practice]['scanned'] += 1
+            
+            if action == 'COPY':
+                practice_data[practice]['copied'] += 1
+            elif action == 'MOVE_TO_UNMAPPED':
+                practice_data[practice]['unmapped'] += 1
+            elif action == 'ERROR':
+                practice_data[practice]['errors'] += 1
+        
+        result = sorted(practice_data.values(), key=lambda x: x['practice'])
+        
+        cur.close()
+        conn.close()
+        
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/practices/<state>/<practice>/files')
+def get_practice_files(state, practice):
+    """Get files for a specific practice with pagination"""
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        
+        page = int(request.args.get('page', 1))
+        page_size = int(request.args.get('page_size', 50))
+        action_filter = request.args.get('action')
+        
+        offset = (page - 1) * page_size
+        
+        query = """
+            SELECT 
+                FileProcessingKey,
+                SourcePath,
+                DestinationPath,
+                Action,
+                Reason,
+                EventTimeUTC,
+                FileExtension,
+                FileSizeBytes
+            FROM FACT_FileProcessing 
+            WHERE SourcePath IS NOT NULL
+        """
+        
+        params = []
+        
+        if action_filter:
+            query += " AND Action = %s"
+            params.append(action_filter)
+        
+        query += " ORDER BY EventTimeUTC DESC LIMIT %s OFFSET %s"
+        params.extend([page_size, offset])
+        
+        cur.execute(query, params)
+        rows = cur.fetchall()
+        
+        files = []
+        for row in rows:
+            parsed_state, parsed_practice = parse_state_practice_from_path(row[1])
+            
+            if parsed_state != state or parsed_practice != practice:
+                continue
+            
+            files.append({
+                'id': row[0],
+                'source_path': row[1],
+                'destination_path': row[2],
+                'action': row[3],
+                'reason': row[4],
+                'timestamp': row[5].isoformat() if row[5] else None,
+                'file_extension': row[6],
+                'file_size': row[7]
+            })
+        
+        count_query = """
+            SELECT COUNT(*) 
+            FROM FACT_FileProcessing 
+            WHERE SourcePath IS NOT NULL
+        """
+        
+        if action_filter:
+            count_query += " AND Action = %s"
+            cur.execute(count_query, [action_filter])
+        else:
+            cur.execute(count_query)
+        
+        total_in_db = cur.fetchone()[0]
+        
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'files': files[:page_size],
+            'total': len(files),
+            'page': page,
+            'page_size': page_size,
+            'has_more': len(files) > page_size
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/unmapped')
 def get_unmapped():
     """Get unmapped files"""
