@@ -16,14 +16,14 @@ Content-Type: application/json
 
 ```json
 {
-  "source": "C:/Users/kulka/Downloads/All_5_Dummy_Datasets/dataset4slove_final/Dataset, Jsonselfmapping/Dataset4_JSON_SelfMapping.zip",
-  "dest": "C:/Users/kulka/Downloads/All_5_Dummy_Datasets/organized_output",
+  "source": "{{source_path}}",
+  "dest": "{{dest_path}}",
   "dry_run": false,
   "mapping": {
     "identity": {
       "roster": {
         "type": "json",
-        "path": "C:/Users/kulka/Downloads/All_5_Dummy_Datasets/dataset4slove_final/Dataset, Jsonselfmapping/Dataset4_JSON_SelfMapping.zip/Export/demographics_index.json"
+        "path": "{{demographics_path}}"
       }
     }
   }
@@ -32,7 +32,7 @@ Content-Type: application/json
 
 ## Option 2: If You Need to Create a Patient Roster
 
-**First, create this Excel file at:** `C:/Users/kulka/Downloads/patients.xlsx`
+**First, create this Excel file at:** `patients.xlsx`
 
 | last_name | first_name | dob        |
 |-----------|------------|------------|
@@ -43,14 +43,14 @@ Content-Type: application/json
 
 ```json
 {
-  "source": "C:/Users/kulka/Downloads/All_5_Dummy_Datasets/dataset4slove_final/Dataset, Jsonselfmapping/Dataset4_JSON_SelfMapping.zip/Export",
-  "dest": "C:/Users/kulka/Downloads/All_5_Dummy_Datasets/organized_output",
+  "source": "{{source_path}}",
+  "dest": "{{dest_path}}",
   "dry_run": false,
   "mapping": {
     "identity": {
       "roster": {
         "type": "excel",
-        "path": "C:/Users/kulka/Downloads/patients.xlsx"
+        "path": "/path/to/patients.xlsx"
       }
     }
   }
@@ -62,15 +62,21 @@ Content-Type: application/json
 If you've already extracted the ZIP:
 
 ```json
+## Option 3: Process the Export Folder Directly (Not ZIP)
+
+If you've already extracted the ZIP:
+
+```json
+POST http://localhost:5000/api/process
 {
-  "source": "C:/Users/kulka/Downloads/All_5_Dummy_Datasets/dataset4slove_final/Dataset, Jsonselfmapping/Export",
-  "dest": "C:/Users/kulka/Downloads/All_5_Dummy_Datasets/organized_output",
+  "source": "{{source_path}}",
+  "dest": "{{dest_path}}",
   "dry_run": false,
   "mapping": {
     "identity": {
       "roster": {
         "type": "excel",
-        "path": "C:/Users/kulka/Downloads/patients.xlsx"
+        "path": "/path/to/patients.xlsx"
       }
     }
   }
@@ -111,6 +117,6 @@ And your dashboard will show:
 - If NO → Use Option 2 (create Excel roster first)
 
 **Check if this file exists:**
-`C:\Users\kulka\Downloads\All_5_Dummy_Datasets\dataset4slove_final\Dataset, Jsonselfmapping\Dataset4_JSON_SelfMapping.zip\Export\demographics_index.json`
+`/path/to/demographics_index.json`
 
 Tell me: **Does that file exist?**

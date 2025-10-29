@@ -27,14 +27,14 @@ Create an Excel file `patients.xlsx`:
 ```json
 POST http://localhost:5000/api/process
 {
-  "source": "C:/Users/kulka/Downloads/All_5_Dummy_Datasets/Dataset4_JSON_SelfMapping.zip",
-  "dest": "C:/Users/kulka/Downloads/All_5_Dummy_Datasets/dataset4slove_final",
+  "source": "/path/to/medical_dataset.zip",
+  "dest": "/path/to/organized_output",
   "dry_run": false,
   "mapping": {
     "identity": {
       "roster": {
-        "type": "excel",
-        "path": "C:/Users/kulka/Downloads/patients.xlsx",
+        "type": "xlsx",
+        "path": "/path/to/patients.xlsx",
         "hints": {
           "last": ["last_name", "surname", "last"],
           "first": ["first_name", "given_name", "first"],
@@ -187,7 +187,7 @@ Dataset4_JSON_SelfMapping/
   "identity": {
     "roster": {
       "type": "json",
-      "path": "C:/Users/kulka/Downloads/All_5_Dummy_Datasets/Dataset4_JSON_SelfMapping/Export/demographics_index.json",
+      "path": "/path/to/demographics_index.json",
       "mapping": {
         "last_name": "surname",
         "first_name": "given_name",
@@ -208,10 +208,10 @@ Dataset4_JSON_SelfMapping/
 ```json
 POST http://localhost:5000/api/process
 {
-  "source": "C:/Users/kulka/Downloads/All_5_Dummy_Datasets/Dataset4_JSON_SelfMapping.zip",
-  "dest": "C:/Users/kulka/Downloads/All_5_Dummy_Datasets/dataset4slove_final",
+  "source": "/path/to/medical_dataset.zip",
+  "dest": "/path/to/organized_output",
   "dry_run": false,
-  "mapping": "C:/Users/kulka/Downloads/demographics_mapping.json"
+  "mapping": "/path/to/demographics_mapping.json"
 }
 ```
 

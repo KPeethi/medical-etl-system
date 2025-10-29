@@ -88,7 +88,7 @@ GET /health
 ```http
 POST /api/process
 Content-Type: multipart/form-data
-Body: file=fake_patient_dataset.zip
+Body: file=medical_dataset.zip
 ```
 
 ## 🎯 Advanced Features

@@ -14,8 +14,12 @@ import tempfile
 def organize_files_flat_structure():
     """Organize files into patient folders WITHOUT subfolders - flat structure with prefixed filenames"""
     
-    source_zip = r"C:\Users\kulka\Downloads\fake_patient_dataset.zip"
-    dest_folder = r"C:\Users\kulka\Downloads\organized_patients_flat"
+    source_zip = input("Enter path to source folder or ZIP: ").strip()
+    dest_folder = input("Enter destination folder path: ").strip()
+    
+    if not source_zip or not dest_folder:
+        print("❌ Both source and destination paths are required.")
+        return
     
     print(f"🚀 Starting FLAT file organization...")
     print(f"📦 Source: {source_zip}")
@@ -45,7 +49,7 @@ def organize_files_flat_structure():
         
         # Find the dataset folder
         temp_path = Path(temp_dir)
-        dataset_folder = temp_path / "fake_patient_dataset"
+        dataset_folder = temp_path / "medical_dataset"
         
         if not dataset_folder.exists():
             subfolders = [f for f in temp_path.iterdir() if f.is_dir()]

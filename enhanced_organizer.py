@@ -131,11 +131,18 @@ def find_patient_info_in_text(text, patients_dict):
     return None
 
 
-def organize_files_with_content_reading():
+def organize_files_with_content_reading(source_zip=None, dest_folder=None):
     """Enhanced organizer that reads PDF content for patient matching"""
     
-    source_zip = r"C:\Users\kulka\Downloads\fake_patient_dataset.zip"
-    dest_folder = r"C:\Users\kulka\Downloads\organized_patients_enhanced"
+    # Get paths from parameters or prompt user
+    if not source_zip:
+        source_zip = input("Enter path to source ZIP file: ").strip()
+    if not dest_folder:
+        dest_folder = input("Enter destination folder path: ").strip()
+    
+    if not source_zip or not dest_folder:
+        print("❌ Both source and destination paths are required.")
+        return False
     
     print("🚀 Starting ENHANCED file organization...")
     print("📋 Features: Filename parsing + PDF content reading")
@@ -165,7 +172,7 @@ def organize_files_with_content_reading():
         
         # Find the dataset folder
         temp_path = Path(temp_dir)
-        dataset_folder = temp_path / "fake_patient_dataset"
+        dataset_folder = temp_path / "medical_dataset"
         
         if not dataset_folder.exists():
             subfolders = [f for f in temp_path.iterdir() if f.is_dir()]
@@ -318,4 +325,12 @@ def organize_files_with_content_reading():
                         print(f"      📄 {file.name}")
 
 if __name__ == "__main__":
-    organize_files_with_content_reading()
+    import sys
+    
+    # Get source and destination paths from command line or prompt user
+    if len(sys.argv) > 2:
+        source_zip = sys.argv[1]
+        dest_folder = sys.argv[2]
+        organize_files_with_content_reading(source_zip, dest_folder)
+    else:
+        organize_files_with_content_reading()

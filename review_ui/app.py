@@ -12,6 +12,7 @@ import tempfile
 import shutil
 import zipfile
 import pandas as pd
+import subprocess
 from pathlib import Path
 from flask import Flask, render_template, jsonify, request
 from datetime import datetime
@@ -651,41 +652,55 @@ def preview_roster():
 @app.route('/api/process', methods=['POST'])
 def process_files():
     """
-    Process files from source to destination with optional mapping
+    Process files using working_universal_processor.py
     
     Example POST body:
     {
-        "source": "C:/path/to/source.zip",
-        "dest": "C:/path/to/destination",
+        "source": "{{source_path}}",
+        "dest": "{{dest_path}}", 
         "dry_run": false,
-        "mapping": "C:/path/to/mapping.json"  // optional
+        "config": "{{config_path}}",  // optional
+        "roster": "{{roster_path}}",  // optional
+        "mapping": "{{mapping_path}}"  // optional
     }
-    
-    Security: Set API_KEY environment variable to require authentication
     """
-    auth_error = check_api_key()
-    if auth_error:
-        return auth_error
-    
     try:
         data = request.get_json()
         
         if not data:
             return jsonify({'error': 'No JSON data provided'}), 400
         
-        mapping_data = data.get('mapping', {})
-        if isinstance(mapping_data, dict):
-            is_valid, error_msg = validate_config(mapping_data)
-            if not is_valid:
+        # Validate required fields
+        required_fields = ['source', 'dest']
+        for field in required_fields:
+            if field not in data:
                 return jsonify({
-                    'error': error_msg,
-                    'status': 'validation_failed'
+                    'error': f'Missing required field: {field}'
                 }), 400
         
-        source_path = data.get('source')
-        dest_path = data.get('dest')
-        dry_run = data.get('dry_run', True)
-        mapping_path = data.get('mapping')
+        # Build command using working_universal_processor.py
+        cmd = [
+            'python', 
+            os.path.join('..', 'working_universal_processor.py'),
+            '--source', data['source'],
+            '--dest', data['dest']
+        ]
+        
+        # Add optional parameters
+        if data.get('config'):
+            cmd.extend(['--config', data['config']])
+        
+        if data.get('roster'):
+            cmd.extend(['--roster', data['roster']])
+            
+        if data.get('mapping'):
+            cmd.extend(['--mapping', data['mapping']])
+        
+        # Add execution mode
+        if not data.get('dry_run', True):
+            cmd.append('--live')
+        else:
+            cmd.append('--dry-run')
         
         if not source_path or not dest_path:
             return jsonify({'error': 'source and dest are required'}), 400
@@ -837,6 +852,41 @@ def process_files():
     
     except Exception as e:
         return jsonify({'error': f'Unexpected error: {str(e)}'}), 500
+
+
+
+@app.route('/health', methods=['GET'])
+def health_check():
+    """Enhanced health check with system status"""
+    try:
+        # Check database connection if available
+        db_status = "not_configured"
+        if DATABASE_URL:
+            try:
+                with get_db() as conn:
+                    db_status = "connected"
+            except:
+                db_status = "error"
+        
+        # Check if working processor exists
+        processor_path = os.path.join(os.path.dirname(__file__), '..', 'working_universal_processor.py')
+        processor_available = os.path.exists(processor_path)
+        
+        return {
+            'status': 'healthy',
+            'database': db_status,
+            'processor_available': processor_available,
+            'api_endpoints': [
+                'GET /health',
+                'POST /api/process',
+                'GET /api/stats',
+                'GET /api/recent-runs',
+                'GET /api/unmapped',
+                'GET /api/bad-dob'
+            ]
+        }
+    except Exception as e:
+        return {'status': 'error', 'message': str(e)}, 500
 
 if __name__ == '__main__':
     host = os.environ.get('FLASK_HOST', '127.0.0.1')

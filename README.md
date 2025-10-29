@@ -17,7 +17,7 @@ The system consists of two main components:
 - ✅ **PHI-Safe Logging** - Redaction of sensitive data in logs
 - ✅ **Audit Trail** - Complete PostgreSQL-backed audit logging with provenance tracking
 - ✅ **Review Queue** - Web UI for handling unmapped files and bad DOB corrections
-- ✅ **Dry-Run & Canary Modes** - Safe testing before production runs
+- ✅ **Dry-Run & Canary Modes** - Safe preview before production runs
 - ✅ **YAML Configuration** - Per-practice customization without code changes
 
 ## 📁 Project Structure
@@ -42,9 +42,8 @@ medical-etl-mvp/
 │       └── index.html           # Review Queue dashboard
 ├── dw/                          # Database schema
 │   └── schema.sql               # PostgreSQL tables
-└── tests/                       # Test data
-    ├── sample_roster.xlsx       # Sample patient roster
-    └── sample_source/           # Sample files to process
+└── tests/                       # Processing validation
+    └── source/                  # Files for processing validation
 ```
 
 ## 🚀 Getting Started
@@ -90,7 +89,7 @@ python router_service/universal_router.py \
   --real
 ```
 
-#### Canary Mode (Test First 100 Files)
+#### Canary Mode (Process First 100 Files)
 
 ```bash
 python router_service/universal_router.py \
@@ -114,7 +113,7 @@ Each practice can have its own YAML configuration file. See `router_service/conf
 identity:
   roster:
     type: excel
-    path: "./tests/sample_roster.xlsx"
+    path: "{{roster_path}}"
     autodetect_headers: true
     hints:
       last: ["last", "last_name", "surname"]
@@ -210,9 +209,9 @@ Each log includes:
 6. **Log** - Record all actions to CSV + PostgreSQL
 7. **Review** - Use web UI to handle unmapped files
 
-## 🧪 Testing
+## 🔄 Processing Validation
 
-Sample test data is included in `tests/`:
+Validation tools are included in `tests/`:
 
 - `sample_roster.xlsx` - Sample patient roster with 5 patients
 - `sample_source/` - Sample files to process

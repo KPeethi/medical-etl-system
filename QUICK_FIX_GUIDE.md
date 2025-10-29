@@ -32,7 +32,7 @@ Without a roster file, the system can't match files to patients, so everything g
 
 ### Step 1: Create Patient Roster Excel File
 
-Create a file called `C:\patients.xlsx` with this data:
+Create a file called `patients.xlsx` with this data:
 
 | last_name | first_name | dob        |
 |-----------|------------|------------|
@@ -109,9 +109,9 @@ The system **cannot** identify which patient they belong to from the filename al
 
 ## Example with Your Dataset
 
-Based on your earlier mention of:
+Based on your dataset structure:
 ```
-C:/Users/kulka/Downloads/All_5_Dummy_Datasets/Dataset4_JSON_SelfMapping.zip
+/path/to/medical_dataset.zip
 ```
 
 **If you have a demographics_index.json file**, here's the request:
@@ -119,14 +119,14 @@ C:/Users/kulka/Downloads/All_5_Dummy_Datasets/Dataset4_JSON_SelfMapping.zip
 ```json
 POST http://localhost:5000/api/process
 {
-  "source": "C:/Users/kulka/Downloads/All_5_Dummy_Datasets/Dataset4_JSON_SelfMapping.zip",
-  "dest": "C:/Users/kulka/Downloads/All_5_Dummy_Datasets/dataset4_output",
+  "source": "/path/to/medical_dataset.zip",
+  "dest": "/path/to/organized_output",
   "dry_run": false,
   "mapping": {
     "identity": {
       "roster": {
         "type": "json",
-        "path": "C:/Users/kulka/Downloads/All_5_Dummy_Datasets/demographics_index.json"
+        "path": "/path/to/demographics_index.json"
       }
     }
   }

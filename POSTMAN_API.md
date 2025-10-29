@@ -43,10 +43,10 @@ Process files from source to destination with optional mapping configuration.
 
 ```json
 {
-  "source": "C:/Users/kulka/Downloads/All_5_Dummy_Datasets/Dataset4_JSON_SelfMapping.zip",
-  "dest": "C:/Users/kulka/Downloads/All_5_Dummy_Datasets/dataset4slove_final",
+  "source": "/path/to/medical_dataset.zip",
+  "dest": "/path/to/organized_output",
   "dry_run": false,
-  "mapping": "C:/Users/kulka/Downloads/All_5_Dummy_Datasets/Dataset4_JSON_SelfMapping/Export/Mapping/demographics_index.json"
+  "mapping": "/path/to/demographics_index.json"
 }
 ```
 
@@ -89,8 +89,8 @@ Must have two columns: `pattern` and `module`
   "run_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
   "session_key": "md5hash1234567890",
   "mode": "REAL_RUN",
-  "source": "C:/Users/kulka/Downloads/All_5_Dummy_Datasets/Dataset4_JSON_SelfMapping.zip",
-  "destination": "C:/Users/kulka/Downloads/All_5_Dummy_Datasets/dataset4slove_final",
+  "source": "/path/to/medical_dataset.zip",
+  "destination": "/path/to/organized_output",
   "stats": {
     "processed": 150,
     "copied": 142,
@@ -167,8 +167,8 @@ POST http://localhost:5000/api/process
 Content-Type: application/json
 
 {
-  "source": "C:/Users/kulka/Downloads/sample_data.zip",
-  "dest": "C:/Users/kulka/Downloads/output",
+  "source": "/path/to/sample_data.zip",
+  "dest": "/path/to/output",
   "dry_run": true
 }
 ```
@@ -183,10 +183,10 @@ POST http://localhost:5000/api/process
 Content-Type: application/json
 
 {
-  "source": "C:/Users/kulka/Downloads/All_5_Dummy_Datasets/Dataset4_JSON_SelfMapping.zip",
-  "dest": "C:/Users/kulka/Downloads/All_5_Dummy_Datasets/dataset4slove_final",
+  "source": "/path/to/medical_dataset.zip",
+  "dest": "/path/to/organized_output",
   "dry_run": false,
-  "mapping": "C:/Users/kulka/Downloads/All_5_Dummy_Datasets/Dataset4_JSON_SelfMapping/Export/Mapping/demographics_index.json"
+  "mapping": "/path/to/demographics_index.json"
 }
 ```
 
@@ -205,8 +205,8 @@ POST http://localhost:5000/api/process
 Content-Type: application/json
 
 {
-  "source": "C:/Users/kulka/Downloads/medical_files",
-  "dest": "C:/Users/kulka/Downloads/organized",
+  "source": "/path/to/medical_files",
+  "dest": "/path/to/organized",
   "dry_run": false
 }
 ```

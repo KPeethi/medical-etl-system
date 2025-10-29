@@ -1,0 +1,421 @@
+{
+  "info": {
+    "name": "Medical File Processing API - Complete Workflow",
+    "description": "Complete API collection for Medical File Processing with Mapping → Folder → Filename → OCR → Unmapped workflow",
+    "version": "1.0.0",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "noauth"
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Set base URL as environment variable",
+          "pm.environment.set('base_url', 'http://localhost:5001');"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:5001",
+      "type": "string"
+    },
+    {
+      "key": "source_path",
+      "value": "",
+      "type": "string",
+      "description": "Path to your source files or ZIP"
+    },
+    {
+      "key": "dest_path", 
+      "value": "",
+      "type": "string",
+      "description": "Path to organized output directory"
+    },
+    {
+      "key": "roster_path",
+      "value": "",
+      "type": "string", 
+      "description": "Optional: Path to roster CSV file"
+    },
+    {
+      "key": "mapping_path",
+      "value": "",
+      "type": "string",
+      "description": "Optional: Path to mapping CSV file"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health Check",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status code is 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test('Service is healthy', function () {",
+              "    const responseJson = pm.response.json();",
+              "    pm.expect(responseJson.status).to.eql('healthy');",
+              "    pm.expect(responseJson.workflow).to.include('Mapping → Folder → Filename → OCR → Unmapped');",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/health",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "health"
+          ]
+        },
+        "description": "Check if the API server is running and healthy"
+      },
+      "response": []
+    },
+    {
+      "name": "Process Files - Dry Run (Basic)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status code is 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test('Response contains workflow info', function () {",
+              "    const responseJson = pm.response.json();",
+              "    pm.expect(responseJson.workflow).to.eql('Mapping → Folder → Filename → OCR → Unmapped');",
+              "    pm.expect(responseJson.mode).to.eql('DRY_RUN');",
+              "});",
+              "",
+              "// Store run_id for status checking",
+              "const responseJson = pm.response.json();",
+              "if (responseJson.run_id) {",
+              "    pm.environment.set('last_run_id', responseJson.run_id);",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"source\": \"{{source_path}}\",\n    \"dest\": \"{{dest_path}}\",\n    \"dry_run\": true\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/process",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "process"
+          ]
+        },
+        "description": "Basic file processing with dry run mode - no actual file movement"
+      },
+      "response": []
+    },
+    {
+      "name": "Process Files - With Roster (Dry Run)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status code is 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test('Stats show mapping matches', function () {",
+              "    const responseJson = pm.response.json();",
+              "    pm.expect(responseJson.stats).to.have.property('mapping_matched');",
+              "    pm.expect(responseJson.stats).to.have.property('folder_matched');",
+              "    pm.expect(responseJson.stats).to.have.property('filename_matched');",
+              "    pm.expect(responseJson.stats).to.have.property('ocr_matched');",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"source\": \"{{source_path}}\",\n    \"dest\": \"{{dest_path}}\",\n    \"roster\": \"{{roster_path}}\",\n    \"dry_run\": true\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/process",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "process"
+          ]
+        },
+        "description": "Process files with roster file for mapping lookup - shows complete workflow"
+      },
+      "response": []
+    },
+    {
+      "name": "Process Files - With Mapping File (Dry Run)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status code is 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test('Mapping workflow executed', function () {",
+              "    const responseJson = pm.response.json();",
+              "    pm.expect(responseJson.workflow).to.include('Mapping');",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"source\": \"{{source_path}}\",\n    \"dest\": \"{{dest_path}}\",\n    \"mapping\": \"{{mapping_path}}\",\n    \"dry_run\": true\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/process",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "process"
+          ]
+        },
+        "description": "Process files with mapping file - demonstrates mapping-first workflow"
+      },
+      "response": []
+    },
+    {
+      "name": "Process Files - Complete Workflow (Dry Run)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status code is 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test('Complete workflow executed', function () {",
+              "    const responseJson = pm.response.json();",
+              "    pm.expect(responseJson.workflow).to.eql('Mapping → Folder → Filename → OCR → Unmapped');",
+              "    pm.expect(responseJson.stats.total_processed).to.be.above(0);",
+              "});",
+              "",
+              "pm.test('All detection methods tracked', function () {",
+              "    const responseJson = pm.response.json();",
+              "    const stats = responseJson.stats;",
+              "    pm.expect(stats).to.have.property('mapping_matched');",
+              "    pm.expect(stats).to.have.property('folder_matched');",
+              "    pm.expect(stats).to.have.property('filename_matched');",
+              "    pm.expect(stats).to.have.property('ocr_matched');",
+              "    pm.expect(stats).to.have.property('unmapped');",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"source\": \"{{source_path}}\",\n    \"dest\": \"{{dest_path}}\",\n    \"roster\": \"{{roster_path}}\",\n    \"mapping\": \"{{mapping_path}}\",\n    \"dry_run\": true\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/process",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "process"
+          ]
+        },
+        "description": "Complete workflow with all optional parameters - full Mapping → Folder → Filename → OCR → Unmapped"
+      },
+      "response": []
+    },
+    {
+      "name": "Process Files - LIVE RUN (Actually Move Files)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status code is 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test('Live run executed', function () {",
+              "    const responseJson = pm.response.json();",
+              "    pm.expect(responseJson.mode).to.eql('LIVE_RUN');",
+              "    pm.expect(responseJson.message).to.include('completed successfully');",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"source\": \"{{source_path}}\",\n    \"dest\": \"{{dest_path}}\",\n    \"dry_run\": false\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/process",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "process"
+          ]
+        },
+        "description": "⚠️ LIVE RUN - Actually moves/organizes files! Use with caution."
+      },
+      "response": []
+    },
+    {
+      "name": "Get Processing Status",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status code is 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test('Status information returned', function () {",
+              "    const responseJson = pm.response.json();",
+              "    pm.expect(responseJson).to.have.property('run_id');",
+              "    pm.expect(responseJson).to.have.property('success');",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/status/{{last_run_id}}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "status",
+            "{{last_run_id}}"
+          ]
+        },
+        "description": "Get status of the last processing run using stored run_id"
+      },
+      "response": []
+    },
+    {
+      "name": "Download Processing Logs",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status code is 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test('Log file downloaded', function () {",
+              "    pm.expect(pm.response.headers.get('Content-Type')).to.include('application/octet-stream');",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/logs/{{last_run_id}}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "logs",
+            "{{last_run_id}}"
+          ]
+        },
+        "description": "Download detailed logs for the processing run"
+      },
+      "response": []
+    }
+  ]
+}

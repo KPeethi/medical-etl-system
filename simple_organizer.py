@@ -37,7 +37,7 @@ def organize_patient_files(source_zip, dest_folder):
         
         # Find the dataset folder
         temp_path = Path(temp_dir)
-        dataset_folder = temp_path / "fake_patient_dataset"
+        dataset_folder = temp_path / "medical_dataset"
         
         if not dataset_folder.exists():
             # Look for any folder

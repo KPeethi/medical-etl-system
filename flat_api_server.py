@@ -38,7 +38,7 @@ def organize_files_api(source_zip, dest_folder):
         
         # Find the dataset folder
         temp_path = Path(temp_dir)
-        dataset_folder = temp_path / "fake_patient_dataset"
+        dataset_folder = temp_path / "medical_dataset"
         
         if not dataset_folder.exists():
             subfolders = [f for f in temp_path.iterdir() if f.is_dir()]
@@ -163,20 +163,43 @@ def health():
 @app.route('/api/process', methods=['POST'])
 def process_files():
     try:
-        data = request.get_json()
-        
-        if not data:
-            return jsonify({'error': 'No JSON data provided'}), 400
-        
-        source_path = data.get('source')
-        dest_path = data.get('dest')
-        dry_run = data.get('dry_run', True)
-        
-        if not source_path or not dest_path:
-            return jsonify({'error': 'source and dest are required'}), 400
-        
-        if not Path(source_path).exists():
-            return jsonify({'error': f'Source file not found: {source_path}'}), 400
+        # Check if it's a file upload or JSON data
+        if request.files:
+            # Handle file upload from Postman
+            if 'file' not in request.files:
+                return jsonify({'error': 'No file provided. Upload a ZIP file with key "file"'}), 400
+            
+            file = request.files['file']
+            if file.filename == '':
+                return jsonify({'error': 'No file selected'}), 400
+            
+            if not file.filename.endswith('.zip'):
+                return jsonify({'error': 'Please upload a ZIP file'}), 400
+            
+            # Save uploaded file temporarily
+            temp_zip_path = f"temp_upload_{uuid.uuid4().hex}.zip"
+            file.save(temp_zip_path)
+            
+            # Set default destination
+            dest_path = "organized_patients_api"
+            dry_run = False  # Real processing for file uploads
+            
+        else:
+            # Handle JSON data (original way)
+            data = request.get_json()
+            
+            if not data:
+                return jsonify({'error': 'No JSON data or file provided. Either upload a ZIP file or send JSON with source/dest paths'}), 400
+            
+            temp_zip_path = data.get('source')
+            dest_path = data.get('dest')
+            dry_run = data.get('dry_run', True)
+            
+            if not temp_zip_path or not dest_path:
+                return jsonify({'error': 'source and dest are required in JSON mode'}), 400
+            
+            if not Path(temp_zip_path).exists():
+                return jsonify({'error': f'Source file not found: {temp_zip_path}'}), 400
         
         if dry_run:
             return jsonify({
@@ -184,22 +207,22 @@ def process_files():
                 'mode': 'DRY_RUN',
                 'message': 'DRY RUN: Would organize files with flat structure',
                 'structure': 'Patient folders → Module_filename.pdf (NO subfolders)',
-                'example': 'Smith, John 1985-02-14/Laboratory_lab_1.pdf',
-                'source': source_path,
+                'example': 'LastName, FirstName YYYY-MM-DD/Module_filename.pdf',
+                'source': temp_zip_path,
                 'destination': dest_path,
                 'note': 'Set dry_run to false to actually create organized folders'
             })
         
         # Actually process files
-        processing_results = organize_files_api(source_path, dest_path)
+        processing_results = organize_files_api(temp_zip_path, dest_path)
         
         run_id = str(uuid.uuid4())[:8]
         
-        return jsonify({
+        response_data = {
             'status': 'success',
             'mode': 'REAL_RUN',
             'run_id': f'flat-run-{run_id}',
-            'source': source_path,
+            'source': temp_zip_path if not request.files else 'uploaded_file.zip',
             'destination': dest_path,
             'structure': 'FLAT - Patient folders with prefixed files (NO subfolders)',
             'stats': {
@@ -211,7 +234,16 @@ def process_files():
             'files_processed': processing_results['files_processed'][:10],  # First 10
             'message': f'Successfully organized {processing_results["copied"]} files into flat patient folders!',
             'folder_created': str(Path(dest_path).exists())
-        })
+        }
+        
+        # Clean up temporary file if it was uploaded
+        if request.files and Path(temp_zip_path).exists():
+            try:
+                os.unlink(temp_zip_path)
+            except:
+                pass
+        
+        return jsonify(response_data)
         
     except Exception as e:
         return jsonify({

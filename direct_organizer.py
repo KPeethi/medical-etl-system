@@ -12,11 +12,19 @@ from pathlib import Path
 import re
 import tempfile
 
-def organize_files_with_subfolders():
+def organize_files_with_subfolders(source_zip=None, dest_folder=None):
     """Organize files into patient folders with proper subfolders"""
+    import sys
     
-    source_zip = r"C:\Users\kulka\Downloads\fake_patient_dataset.zip"
-    dest_folder = r"C:\Users\kulka\Downloads\organized_patients_with_subfolders"
+    # Get paths from parameters or prompt user
+    if not source_zip:
+        source_zip = input("Enter path to source ZIP file: ").strip()
+    if not dest_folder:
+        dest_folder = input("Enter destination folder path: ").strip()
+    
+    if not source_zip or not dest_folder:
+        print("❌ Both source and destination paths are required.")
+        return False
     
     print(f"🚀 Starting file organization...")
     print(f"📦 Source: {source_zip}")
@@ -45,7 +53,7 @@ def organize_files_with_subfolders():
         
         # Find the dataset folder
         temp_path = Path(temp_dir)
-        dataset_folder = temp_path / "fake_patient_dataset"
+        dataset_folder = temp_path / "medical_dataset"
         
         if not dataset_folder.exists():
             print("⚠️ Dataset folder not found, looking for alternatives...")
@@ -179,4 +187,12 @@ def organize_files_with_subfolders():
                                 print(f"         📄 {file.name}")
 
 if __name__ == "__main__":
-    organize_files_with_subfolders()
+    import sys
+    
+    # Get source and destination paths from command line or prompt user
+    if len(sys.argv) > 2:
+        source_zip = sys.argv[1]
+        dest_folder = sys.argv[2]
+        organize_files_with_subfolders(source_zip, dest_folder)
+    else:
+        organize_files_with_subfolders()
